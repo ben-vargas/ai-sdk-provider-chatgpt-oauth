@@ -11,13 +11,19 @@ A [Vercel AI SDK](https://sdk.vercel.ai) v5 provider for accessing GPT-5 models 
 - 📦 **AI SDK v5 Compatible** - Works seamlessly with Vercel AI SDK v5
 - 🔥 **TypeScript Ready** - Full TypeScript support with type definitions
 - 📊 **Usage Tracking** - Accurate token usage and telemetry
+- 📝 **JSON Generation** - Generate structured JSON through prompt engineering (see [examples](./examples/))
 
 > ⚠️ **Important**: This provider has significant differences from standard OpenAI API. See [limitations](./docs/limitations.md) for details.
 
 📚 **Documentation**:
 
-- [Limitations](./docs/limitations.md) - API constraints and workarounds
 - [Examples](./examples/README.md) - Working code examples
+- [Limitations](./docs/limitations.md) - API constraints and workarounds  
+- [Authentication](./docs/authentication.md) - All authentication options
+- [Tool Calling](./docs/tool-calling.md) - How to use tools
+- [Reasoning](./docs/reasoning.md) - Control reasoning depth
+- [JSON Formatting](./docs/json-formatting.md) - Generate structured output
+- [Tool System](./docs/tool-system.md) - Understanding the architecture
 
 ## Installation
 
@@ -42,7 +48,11 @@ codex login
 
 This will create OAuth credentials at `~/.codex/auth.json` that the provider can use automatically.
 
-### Option 2: Environment Variables
+### Option 2: Implement Your Own OAuth Flow
+
+See the [complete OAuth implementation example](./oauth-example/) that demonstrates how to implement the full OAuth flow without Codex CLI, including PKCE, token refresh, and a working CLI.
+
+### Option 3: Environment Variables
 
 Set the following environment variables:
 
@@ -51,10 +61,6 @@ export CHATGPT_OAUTH_ACCESS_TOKEN="your-access-token"
 export CHATGPT_OAUTH_ACCOUNT_ID="your-account-id"
 export CHATGPT_OAUTH_REFRESH_TOKEN="your-refresh-token" # Optional, for auto-refresh
 ```
-
-### Option 3: Implement Your Own OAuth Flow
-
-See the [complete OAuth implementation example](./oauth-example/) that demonstrates how to implement the full OAuth flow without Codex CLI, including PKCE, token refresh, and a working CLI.
 
 ### Option 4: Direct Credentials
 
@@ -116,156 +122,51 @@ for await (const chunk of result.textStream) {
 
 ### Reasoning Effort Control
 
-Control the depth of reasoning for supported models (similar to Codex CLI's `-c model_reasoning_effort="high"`):
+Control the depth of reasoning for gpt-5 models:
 
 ```typescript
-import { generateText } from 'ai';
-import { createChatGPTOAuth } from 'ai-sdk-provider-chatgpt-oauth';
-
-// Default behavior (matches Codex CLI defaults)
-const provider = createChatGPTOAuth();
-// For gpt-5/codex models: automatically uses effort='medium', summary='auto'
-
-// Customize global reasoning settings
-const customProvider = createChatGPTOAuth({
-  reasoningEffort: 'high', // 'low' | 'medium' | 'high' | null (null disables)
-  reasoningSummary: 'detailed', // 'auto' | 'none' | 'concise' | 'detailed' | null
+const provider = createChatGPTOAuth({
+  reasoningEffort: 'high', // 'low' | 'medium' | 'high' 
 });
 
 // Or per-model call
 const result = await generateText({
-  model: provider('gpt-5', {
-    reasoningEffort: 'high',
-    reasoningSummary: 'detailed',
-  }),
-  prompt: 'Prove that the square root of 2 is irrational',
+  model: provider('gpt-5', { reasoningEffort: 'high' }),
+  prompt: 'Solve this complex problem...',
 });
-
-// Explicitly disable reasoning (even for gpt-5)
-const noReasoning = provider('gpt-5', { reasoningEffort: null });
 ```
 
-#### Reasoning Compatibility Table
-
-| Model                 | Reasoning Effort                     | Reasoning Summary                                       | Notes                                                      |
-| --------------------- | ------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------- |
-| **gpt-5**             | ✅ `low`<br>✅ `medium`<br>✅ `high` | ✅ `auto`<br>✅ `detailed`<br>⚠️ `none`<br>⚠️ `concise` | \*API behavior inconsistent - defaults to omitting summary |
-| **codex-mini-latest** | ✅ `low`<br>✅ `medium`<br>✅ `high` | ✅ `auto`<br>✅ `detailed`<br>⚠️ `none`<br>⚠️ `concise` | \*API behavior inconsistent - defaults to omitting summary |
-
-**Defaults (matching Codex CLI):**
-
-- When using `gpt-5` or `codex-mini-latest` models, reasoning defaults to `effort: 'medium'` and `summary: 'auto'`
-- To disable reasoning, explicitly set `reasoningEffort: null`
-- Other models do not receive reasoning parameters
-
-**Notes:**
-
-- Higher effort levels typically increase response time and token usage
-- ⚠️ The API shows inconsistent behavior with `none` and `concise` summary values - the provider will warn but still pass them through
-- All user-specified values are passed to the API as-is to ensure future compatibility
-- When reasoning is enabled, the request automatically includes `reasoning.encrypted_content`
-- API errors will clearly indicate if a value is not supported
+See [Reasoning Documentation](./docs/reasoning.md) for detailed configuration and compatibility.
 
 ### Tool Calling
 
-The ChatGPT backend implements a Codex-style tool system with two predefined tools:
+ChatGPT OAuth supports only two predefined tools:
 
-#### Supported Tools
-
-1. **`shell`** - Execute command-line tools and scripts
-2. **`update_plan`** - Update task planning and progress tracking
-
-#### How It Works
-
-Unlike standard OpenAI models, ChatGPT uses a pattern where all custom functionality is implemented through command-line tools that are orchestrated via the `shell` tool:
+1. **`shell`** - Execute command-line tools (maps from: `bash`, `shell`, `command`, `execute`)
+2. **`update_plan`** - Task planning (maps from: `TodoWrite`, `update_plan`, `plan`, `todo`)
 
 ```typescript
 import { generateText, tool } from 'ai';
 import { z } from 'zod';
-import { createChatGPTOAuth } from 'ai-sdk-provider-chatgpt-oauth';
-
-const provider = createChatGPTOAuth();
 
 const result = await generateText({
   model: provider('gpt-5'),
-  prompt: 'List the files in the current directory',
+  prompt: 'List files in current directory',
   tools: {
-    // Tool names that map to 'shell': bash, shell, command, execute
     bash: tool({
       description: 'Execute shell commands',
-      parameters: z.object({
-        command: z.array(z.string()),
-        workdir: z.string().optional(),
-        timeout: z.number().optional(),
-      }),
-      execute: async ({ command, workdir, timeout }) => {
-        // Implement with proper sandboxing in production
-        const { spawnSync } = require('child_process');
-        const [cmd, ...args] = command;
-        const result = spawnSync(cmd, args, {
-          cwd: workdir,
-          timeout: (timeout || 30) * 1000,
-          encoding: 'utf8',
-        });
-        return result.stdout || result.stderr;
+      parameters: z.object({ command: z.array(z.string()) }),
+      execute: async ({ command }) => {
+        // Execute command (implement with proper sandboxing)
+        return executeCommand(command);
       },
     }),
   },
-  toolChoice: 'auto',
 });
 ```
 
-#### Custom Tool Pattern
+**Note**: Custom functionality must be implemented as CLI tools. See [Tool Calling Guide](./docs/tool-calling.md) for details.
 
-To implement custom functionality (like a weather API), create command-line tools:
-
-1. **Create a CLI tool**: `weather-cli` that fetches weather data
-2. **Call it via shell**: The AI calls `["weather-cli", "San Francisco"]`
-3. **Return results**: The CLI output becomes the tool result
-
-This mirrors how Codex CLI implements sophisticated tools like `apply_patch` for file editing.
-
-#### Limitations
-
-- **No arbitrary function tools**: Can't define custom function tools like `getWeather`
-- **Shell-based only**: All custom logic must be executable via command line
-- **Two tools only**: Limited to `shell` and `update_plan` functionality
-
-See the `examples/` directory for complete implementation patterns.
-
-### Direct Credentials
-
-```typescript
-import { createChatGPTOAuth } from 'ai-sdk-provider-chatgpt-oauth';
-
-const provider = createChatGPTOAuth({
-  credentials: {
-    accessToken: 'your-access-token',
-    accountId: 'your-account-id',
-    refreshToken: 'your-refresh-token', // Optional
-  },
-});
-```
-
-### Custom Authentication Provider
-
-```typescript
-import { createChatGPTOAuth, AuthProvider } from 'ai-sdk-provider-chatgpt-oauth';
-
-class CustomAuthProvider implements AuthProvider {
-  async getCredentials() {
-    // Your custom logic to get credentials
-    return {
-      accessToken: 'token',
-      accountId: 'account-id',
-    };
-  }
-}
-
-const provider = createChatGPTOAuth({
-  authProvider: new CustomAuthProvider(),
-});
-```
 
 ## Configuration Options
 
@@ -294,51 +195,22 @@ The ChatGPT OAuth API at `https://chatgpt.com/backend-api/codex/responses` only 
 
 Any other model ID string will be passed through to the API, allowing for future model support without code changes.
 
-## Understanding ChatGPT's Tool System
 
-The ChatGPT backend follows the Codex CLI architecture:
+### JSON Generation
 
-### Architecture
+**Note**: `generateObject()` and `streamObject()` are not supported. Use prompt engineering:
 
-- **Predefined Tools Only**: Unlike standard OpenAI models, ChatGPT only supports two specific tools
-- **Shell-Based Execution**: All custom functionality runs through shell commands
-- **Codex Instructions**: The model uses specific Codex CLI instructions for optimal performance
+```typescript
+const result = await generateText({
+  model: provider('gpt-5'),
+  prompt: 'Generate user profile.\nOUTPUT ONLY JSON: {"name": "string", "age": number}',
+});
 
-### Tool Mapping
+const data = JSON.parse(result.text);
+```
 
-The provider automatically maps your tool names to ChatGPT's predefined tools:
+See [JSON examples](./examples/) and [JSON documentation](./docs/json-formatting.md) for patterns.
 
-| Your Tool Name                             | Maps To       | Purpose           |
-| ------------------------------------------ | ------------- | ----------------- |
-| `bash`, `shell`, `command`, `execute`      | `shell`       | Command execution |
-| `TodoWrite`, `update_plan`, `plan`, `todo` | `update_plan` | Task planning     |
-| Other names                                | Not supported | Warning generated |
-
-### Codex Pattern Examples
-
-In the Codex CLI ecosystem:
-
-- **`apply_patch`**: A CLI tool for file editing, called via `shell`
-- **`grep`/`find`**: System tools for searching, called via `shell`
-- **Custom CLIs**: Your own tools, executed through `shell`
-
-## Authentication Details
-
-### Token Refresh
-
-The provider automatically refreshes expired tokens when:
-
-1. A refresh token is available
-2. `autoRefresh` is enabled (default: true)
-3. The access token is within 60 seconds of expiring
-
-### Credential Sources
-
-The provider checks for credentials in this order:
-
-1. Directly provided credentials
-2. Environment variables
-3. Credentials file (default: `~/.codex/auth.json`)
 
 ## Error Handling
 
@@ -419,12 +291,6 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Acknowledgments
-
-- [Vercel AI SDK](https://sdk.vercel.ai) for the excellent SDK framework
-- [OpenAI](https://openai.com) for ChatGPT and Codex CLI
-- Community contributors
 
 ## Support
 
