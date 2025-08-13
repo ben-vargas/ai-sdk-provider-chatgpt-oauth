@@ -1,0 +1,96 @@
+{
+  "name": "ai-sdk-provider-chatgpt-oauth",
+  "version": "1.0.0-beta.1",
+  "description": "Vercel AI SDK v5 provider for ChatGPT OAuth (gpt-5) - use ChatGPT Plus/Pro/Teams subscription",
+  "keywords": [
+    "ai-sdk",
+    "chatgpt",
+    "oauth",
+    "gpt-5",
+    "openai",
+    "codex",
+    "language-model",
+    "llm",
+    "streaming",
+    "vercel"
+  ],
+  "homepage": "https://github.com/ben-vargas/ai-sdk-provider-chatgpt-oauth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ben-vargas/ai-sdk-provider-chatgpt-oauth.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ben-vargas/ai-sdk-provider-chatgpt-oauth/issues"
+  },
+  "license": "MIT",
+  "author": "Ben Vargas",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "docs/**/*",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && cp src/codex-instructions.txt dist/",
+    "clean": "rm -rf dist",
+    "dev": "tsup --watch",
+    "lint": "eslint src --max-warnings 0",
+    "format": "prettier --write \"src/**/*.ts\" \"*.md\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.md\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run clean && npm run build",
+    "example:basic": "npm run build && npx tsx examples/basic-usage.ts",
+    "example:streaming": "npm run build && npx tsx examples/streaming.ts",
+    "example:tools": "npm run build && npx tsx examples/tool-calling.ts",
+    "example:tools:shell": "npm run build && npx tsx examples/tool-calling-shell.ts",
+    "example:tools:custom": "npm run build && npx tsx examples/tool-calling-custom.ts",
+    "example:auth": "npm run build && npx tsx examples/check-auth.ts",
+    "example:models": "npm run build && npx tsx examples/model-support.ts",
+    "example:reasoning": "npm run build && npx tsx examples/reasoning-effort.ts",
+    "example:object": "npm run build && npx tsx examples/generate-object.ts",
+    "example:structured": "npm run build && npx tsx examples/structured-output.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "2.0.0",
+    "@ai-sdk/provider-utils": "3.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^20.17.24",
+    "@typescript-eslint/eslint-plugin": "^8.16.0",
+    "@typescript-eslint/parser": "^8.16.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "ai": "^5.0.8",
+    "eslint": "^9.15.0",
+    "globals": "^16.2.0",
+    "prettier": "^3.3.3",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  }
+}

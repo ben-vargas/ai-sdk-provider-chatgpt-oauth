@@ -1,0 +1,146 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.fusebox/
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+.coverage
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.iml
+.fleet/
+.zed/
+
+# Environment
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+pnpm-debug.log*
+
+# OS Files
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.backup
+*.old
+.cache/
+.parcel-cache/
+.turbo/
+
+# Package managers
+.npm
+.yarn-integrity
+.pnp.*
+.pnpm-store/
+
+# Authentication and Secrets
+auth.json
+.codex/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Documentation
+CLAUDE.md
+/docs/dev/
+
+# Debugging
+.vscode-test/
+*.pid
+*.seed
+*.pid.lock
+.node_repl_history
+
+# Bundle analysis
+stats.json
+webpack-stats.json
+bundle-report.html
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Media files (usually not needed in code repos)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.wav
+
+# Lock files (optional - some projects commit these)
+# Uncomment if you don't want to commit lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Misc
+.history/
+.eslintcache
+.stylelintcache
+*.patch
+*.diff
