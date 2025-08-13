@@ -1,0 +1,25 @@
+{
+  "name": "chatgpt-oauth-example",
+  "version": "1.0.0",
+  "description": "Example OAuth implementation for ChatGPT without Codex CLI",
+  "type": "module",
+  "scripts": {
+    "login": "tsx src/auth-cli.ts login",
+    "logout": "tsx src/auth-cli.ts logout",
+    "status": "tsx src/auth-cli.ts status",
+    "test": "tsx scripts/test.ts",
+    "example": "tsx src/example-app.ts",
+    "dev": "tsx --watch src/example-app.ts"
+  },
+  "dependencies": {
+    "ai": "^5.0.8",
+    "ai-sdk-provider-chatgpt-oauth": "file:..",
+    "open": "^10.1.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

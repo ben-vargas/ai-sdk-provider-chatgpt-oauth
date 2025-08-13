@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# OAuth tokens - NEVER commit these!
+oauth-tokens.json
+*-tokens.json
+tokens.json
+
+# Build outputs
+dist/
+*.js
+*.js.map
+*.d.ts
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

@@ -52,7 +52,11 @@ export CHATGPT_OAUTH_ACCOUNT_ID="your-account-id"
 export CHATGPT_OAUTH_REFRESH_TOKEN="your-refresh-token" # Optional, for auto-refresh
 ```
 
-### Option 3: Direct Credentials
+### Option 3: Implement Your Own OAuth Flow
+
+See the [complete OAuth implementation example](./oauth-example/) that demonstrates how to implement the full OAuth flow without Codex CLI, including PKCE, token refresh, and a working CLI.
+
+### Option 4: Direct Credentials
 
 Pass credentials directly to the provider (see usage examples below).
 
