@@ -18,14 +18,23 @@ This directory contains examples demonstrating the ChatGPT OAuth provider for th
 - `tool-calling-stateless.ts` - Demonstrates stateless backend (full history required)
 - `tool-calling-limitations.ts` - Shows which tools are supported vs unsupported
 
-## Limitations
+## JSON Generation Examples
 
-### ❌ Structured Output / Object Generation
-The `generate-object.ts`, `stream-object.ts`, and `structured-output.ts` examples **do not work** with the ChatGPT OAuth backend because:
+### ✅ Working Approach: Prompt Engineering
 
-1. **Codex Instructions**: The ChatGPT backend is configured with Codex CLI instructions that make it behave as a coding assistant, not a general-purpose JSON generator
-2. **No JSON Mode**: Unlike standard OpenAI models, the ChatGPT backend doesn't support response_format or JSON mode
-3. **Tool-Focused**: The backend is designed for tool use (shell commands, planning) rather than structured data generation
+Since the ChatGPT OAuth backend doesn't support `generateObject()` or custom tools, we use prompt engineering to achieve JSON output:
+
+- `generate-json-basic.ts` - Simple objects, arrays, and data types with validation
+- `generate-json-nested.ts` - Complex nested structures and real-world schemas  
+- `generate-json-advanced.ts` - Production patterns with retry logic and error handling
+
+### ❌ What Doesn't Work
+The `generate-object.ts`, `stream-object.ts`, and `structured-output.ts` examples **do not work** because:
+
+1. **No Custom Tools**: Backend only supports `shell` and `update_plan` tools
+2. **Fixed Instructions**: Codex CLI instructions cannot be modified (causes errors)
+3. **No JSON Mode**: The backend ignores `responseFormat` parameters
+4. **AI SDK Incompatibility**: `generateObject()` requires custom tools which aren't supported
 
 ### Backend Architecture
 

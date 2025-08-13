@@ -33,33 +33,56 @@ The ChatGPT backend **only** supports these tools:
 
 ## Structured Output Limitations
 
-### No JSON Mode for Model Responses
+### ❌ JSON Generation Does NOT Work with AI SDK Features
 
-The ChatGPT backend does not support:
-- `responseFormat: { type: 'json' }` - No JSON mode for model responses
-- `generateObject()` function - Not available
-- `streamObject()` function - Not available
-- Structured output schemas - Not supported
+**Critical Limitation**: The ChatGPT OAuth backend does NOT support custom tools, which means **`generateObject()` and `streamObject()` do NOT work**.
 
-### Limited JSON Support (Events Only)
+**What Does NOT Work:**
+- ❌ **`generateObject()` function** - Requires custom tools, backend only supports shell/update_plan
+- ❌ **`streamObject()` function** - Same limitation as generateObject
+- ❌ **Custom tool schemas** - Only predefined Codex tools are allowed
+- ❌ **Response format parameters** - Backend ignores these entirely
+- ❌ **Modified instructions** - Backend validates and rejects any changes
 
-**What IS Available:**
-- **`codex exec --json` flag**: Outputs events as JSONL (JSON Lines) format
-- **Event streaming**: Debug/monitoring events can be output as JSON
-- **NOT for model responses**: This only affects event logging, not AI responses
+### Why It Doesn't Work
 
-Example of `--json` flag usage (Codex CLI):
-```bash
-codex exec --json "Write a function"
-# Outputs events as JSONL, but AI response is still plain text
+1. **No Custom Tools**: The backend only accepts `shell` and `update_plan` tools
+2. **Fixed Instructions**: Codex CLI instructions cannot be modified (causes "Instructions are not valid" error)
+3. **AI SDK Incompatibility**: generateObject creates custom tools that the backend rejects
+4. **No Response Format Control**: The backend has no structured output mode
+
+### The ONLY Working Approach: Prompt Engineering
+
+```typescript
+// This is the ONLY way to get JSON from ChatGPT OAuth
+const result = await generateText({
+  model: chatgptOAuth('gpt-5'),
+  prompt: `Generate a user profile as JSON.
+  
+IMPORTANT: Respond ONLY with valid JSON. No text before or after.
+{
+  "name": "string",
+  "age": number,
+  "email": "string"
+}`,
+});
+
+// Parse manually with error handling
+try {
+  const data = JSON.parse(result.text);
+  console.log('Parsed:', data);
+} catch (e) {
+  console.error('Not valid JSON');
+}
 ```
 
-### Why Structured Output Doesn't Work
+### Best Practices for JSON Output
 
-1. **Codex Instructions**: The model uses Codex CLI instructions that optimize for coding tasks
-2. **No Response Format Control**: Cannot enforce JSON output at the model level
-3. **Tool-Focused Design**: Optimized for command execution, not data generation
-4. **Events vs Responses**: JSON flag only affects event streaming, not model outputs
+1. **Use explicit prompt instructions** for JSON formatting
+2. **Provide examples** in the prompt
+3. **Parse manually** with error handling
+4. **Consider retry logic** if parsing fails
+5. **Accept that it's not 100% reliable** - the model may still output text
 
 ## Parameter Limitations
 
