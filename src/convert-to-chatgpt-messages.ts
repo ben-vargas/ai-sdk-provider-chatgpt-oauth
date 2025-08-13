@@ -21,12 +21,11 @@ export function convertToChatGPTMessages({
           messages.push({
             role: 'user',
             content: message.content,
-            name: 'system',
           });
 
           warnings.push({
             type: 'other',
-            message: 'System messages are converted to user messages with name="system"',
+            message: 'System messages are converted to user messages',
           });
         } else {
           messages.push({

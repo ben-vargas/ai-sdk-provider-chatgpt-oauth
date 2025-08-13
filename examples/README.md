@@ -14,9 +14,9 @@ This directory contains examples demonstrating the ChatGPT OAuth provider for th
 - `reasoning-effort.ts` - Control reasoning depth with effort levels (low/medium/high)
 
 ### ✅ Tool Calling (Codex-Style)
-- `tool-calling-shell.ts` - Shell command execution via `bash` tool
-- `tool-calling-custom.ts` - Pattern for implementing custom tools through shell
-- `tool-calling.ts` - Demonstrates tool limitations and warnings
+- `tool-calling-basic.ts` - Simple tool calling example with clear output
+- `tool-calling-stateless.ts` - Demonstrates stateless backend (full history required)
+- `tool-calling-limitations.ts` - Shows which tools are supported vs unsupported
 
 ## Limitations
 
@@ -37,6 +37,7 @@ The ChatGPT OAuth backend (`https://chatgpt.com/backend-api/codex/responses`) fo
 - **Instructions**: Uses Codex CLI instructions for optimal performance
 - **Streaming**: Always uses Server-Sent Events (SSE)
 - **Telemetry**: Provides accurate token usage tracking
+- **STATELESS**: Backend doesn't maintain conversation state between requests
 
 #### Tool System
 - **Codex Pattern**: All tools are CLI commands executed via `shell`
@@ -71,9 +72,9 @@ npx tsx examples/streaming.ts        # Streaming responses
 npx tsx examples/reasoning-effort.ts # Reasoning with different effort levels
 
 # Tool Calling
-npx tsx examples/tool-calling.ts        # Tool limitations demo
-npx tsx examples/tool-calling-shell.ts  # Shell command execution
-npx tsx examples/tool-calling-custom.ts # Custom tool pattern
+npx tsx examples/tool-calling-basic.ts       # Simple tool calling
+npx tsx examples/tool-calling-stateless.ts   # Stateless backend demo
+npx tsx examples/tool-calling-limitations.ts # Tool support info
 ```
 
 **Examples That Show Limitations:**
@@ -91,40 +92,38 @@ npm run example:models        # Test model support
 npm run example:basic         # Basic text generation
 npm run example:streaming     # Streaming
 npm run example:reasoning     # Reasoning effort levels
-npm run example:tools         # Tool calling demo
-npm run example:tools:shell   # Shell tool
-npm run example:tools:custom  # Custom tool pattern
+npm run example:tools         # Tool calling basic example
 npm run example:object        # Object generation (fails)
 npm run example:structured    # Structured output (fails)
 ```
 
-## Understanding the Tool Pattern
+## Important Concepts
 
-### How Codex Tools Work
-
-In the Codex CLI ecosystem, sophisticated functionality is implemented as command-line tools:
-
-1. **`apply_patch`** - File editing tool
-   - Called as: `["apply_patch", "patch content"]`
-   - Executed via `shell` tool
-
-2. **Custom Tools** - Your functionality
-   - Create a CLI: `my-tool --arg value`
-   - AI calls: `["my-tool", "--arg", "value"]`
-   - Results returned through stdout
-
-### Example Implementation
+### Stateless Backend
+The ChatGPT OAuth backend is **stateless** - it doesn't remember previous messages. You must send the full conversation history with each request:
 
 ```typescript
-// Define a tool that maps to shell
-tool({
-  name: 'bash',  // Maps to 'shell' in ChatGPT
-  execute: async ({ command }) => {
-    // Your command execution logic
-    return executeCommand(command);
-  }
-})
+const messages: CoreMessage[] = [];
+
+// First message
+messages.push({ role: 'user', content: 'Question 1' });
+const response1 = await generateText({ model, messages });
+messages.push({ role: 'assistant', content: response1.text });
+
+// Second message - must include ALL history
+messages.push({ role: 'user', content: 'Question 2' });
+const response2 = await generateText({ model, messages });
 ```
+
+### Tool Limitations
+Only two tools are supported:
+- **`bash`** - Maps to the `shell` tool internally
+- **`TodoWrite`** - Maps to the `update_plan` tool internally
+
+All other tools will generate warnings and be ignored.
+
+### Tool Response Pattern
+The model describes what it will do but doesn't automatically interpret tool results. This is the Codex CLI pattern - tools execute and show output directly rather than being interpreted by the model.
 
 ## Best Use Cases
 
