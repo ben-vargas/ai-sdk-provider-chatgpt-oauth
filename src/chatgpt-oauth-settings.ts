@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 export type ChatGPTOAuthModelId = 'gpt-5' | 'codex-mini-latest' | (string & {});
 
 export const chatGPTOAuthModels = {
@@ -126,63 +124,3 @@ export interface ChatGPTOAuthCredentials {
   accountId: string;
   expiresAt?: number;
 }
-
-export const codexToolsSchema = z.object({
-  str_replace: z.object({
-    type: z.literal('function'),
-    function: z.object({
-      name: z.literal('str_replace'),
-      description: z.string().optional(),
-      parameters: z.object({
-        path: z.object({ type: z.literal('string') }),
-        old_str: z.object({ type: z.literal('string') }),
-        new_str: z.object({ type: z.literal('string') }),
-      }),
-    }),
-  }),
-  write_to_file: z.object({
-    type: z.literal('function'),
-    function: z.object({
-      name: z.literal('write_to_file'),
-      description: z.string().optional(),
-      parameters: z.object({
-        path: z.object({ type: z.literal('string') }),
-        contents: z.object({ type: z.literal('string') }),
-      }),
-    }),
-  }),
-  read_file: z.object({
-    type: z.literal('function'),
-    function: z.object({
-      name: z.literal('read_file'),
-      description: z.string().optional(),
-      parameters: z.object({
-        path: z.object({ type: z.literal('string') }),
-      }),
-    }),
-  }),
-  list_files: z.object({
-    type: z.literal('function'),
-    function: z.object({
-      name: z.literal('list_files'),
-      description: z.string().optional(),
-      parameters: z.object({
-        path: z.object({ type: z.literal('string') }),
-        recursive: z.object({ type: z.literal('boolean') }).optional(),
-      }),
-    }),
-  }),
-  run_command: z.object({
-    type: z.literal('function'),
-    function: z.object({
-      name: z.literal('run_command'),
-      description: z.string().optional(),
-      parameters: z.object({
-        command: z.object({ type: z.literal('string') }),
-      }),
-    }),
-  }),
-});
-
-// CODEX_TOOLS are now defined directly in chatgpt-oauth-prepare-tools.ts
-// The ChatGPT backend only supports 'shell' and 'update_plan' tools

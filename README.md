@@ -18,7 +18,7 @@ A [Vercel AI SDK](https://sdk.vercel.ai) v5 provider for accessing GPT-5 models 
 📚 **Documentation**:
 
 - [Examples](./examples/README.md) - Working code examples
-- [Limitations](./docs/limitations.md) - API constraints and workarounds  
+- [Limitations](./docs/limitations.md) - API constraints and workarounds
 - [Authentication](./docs/authentication.md) - All authentication options
 - [Tool Calling](./docs/tool-calling.md) - How to use tools
 - [Reasoning](./docs/reasoning.md) - Control reasoning depth
@@ -126,7 +126,7 @@ Control the depth of reasoning for gpt-5 models:
 
 ```typescript
 const provider = createChatGPTOAuth({
-  reasoningEffort: 'high', // 'low' | 'medium' | 'high' 
+  reasoningEffort: 'high', // 'low' | 'medium' | 'high'
 });
 
 // Or per-model call
@@ -167,7 +167,6 @@ const result = await generateText({
 
 **Note**: Custom functionality must be implemented as CLI tools. See [Tool Calling Guide](./docs/tool-calling.md) for details.
 
-
 ## Configuration Options
 
 ### `createChatGPTOAuth(options?)`
@@ -195,7 +194,6 @@ The ChatGPT OAuth API at `https://chatgpt.com/backend-api/codex/responses` only 
 
 Any other model ID string will be passed through to the API, allowing for future model support without code changes.
 
-
 ### JSON Generation
 
 **Note**: `generateObject()` and `streamObject()` are not supported. Use prompt engineering:
@@ -210,7 +208,6 @@ const data = JSON.parse(result.text);
 ```
 
 See [JSON examples](./examples/) and [JSON documentation](./docs/json-formatting.md) for patterns.
-
 
 ## Error Handling
 
