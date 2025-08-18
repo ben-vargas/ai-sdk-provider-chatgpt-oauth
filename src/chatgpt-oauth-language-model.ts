@@ -11,6 +11,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { validateToolResponse } from './tool-response-schemas';
 import type {
   ChatGPTOAuthModelId,
   ChatGPTRequest,
@@ -359,15 +360,21 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
         const originalName = toolMapping.get(toolCall.name) || toolCall.name;
 
         try {
-          const args = JSON.parse(toolCall.args);
+          // Validate tool response against expected schema
+          const args = validateToolResponse(toolCall.name, toolCall.args);
           content.push({
             type: 'tool-call',
             toolCallId: id,
             toolName: originalName,
             input: JSON.stringify(args),
           });
-        } catch {
-          console.error('Failed to parse tool arguments');
+        } catch (error) {
+          // Include validation errors in warnings instead of silently failing
+          warnings.push({
+            type: 'other',
+            message: error instanceof Error ? error.message : 'Failed to parse tool arguments',
+          });
+          console.error('Tool response validation error:', error);
         }
       }
     }
@@ -484,12 +491,28 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
                           // Map back to original tool names using toolMapping
                           const originalName = toolMapping.get(toolCall.name) || toolCall.name;
 
-                          controller.enqueue({
-                            type: 'tool-call',
-                            toolCallId: toolCallId,
-                            toolName: originalName,
-                            input: toolCall.args,
-                          });
+                          try {
+                            // Validate tool response against expected schema
+                            const validatedArgs = validateToolResponse(
+                              toolCall.name,
+                              toolCall.args
+                            );
+                            controller.enqueue({
+                              type: 'tool-call',
+                              toolCallId: toolCallId,
+                              toolName: originalName,
+                              input: JSON.stringify(validatedArgs),
+                            });
+                          } catch (error) {
+                            // Log validation error but still emit the tool call with original args
+                            console.error('Tool response validation error in stream:', error);
+                            controller.enqueue({
+                              type: 'tool-call',
+                              toolCallId: toolCallId,
+                              toolName: originalName,
+                              input: toolCall.args,
+                            });
+                          }
 
                           activeToolCalls.delete(toolCallId);
                         }
