@@ -98,8 +98,11 @@ credentials.json
 secrets.json
 
 # Documentation
-CLAUDE.md
 /docs/dev/
+
+# Claude Code
+.claude/
+CLAUDE.md
 
 # Debugging
 .vscode-test/

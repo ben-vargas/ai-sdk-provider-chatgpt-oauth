@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-provider-chatgpt-oauth",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0",
   "description": "Vercel AI SDK v5 provider for ChatGPT OAuth (gpt-5) - use ChatGPT Plus/Pro/Teams subscription",
   "keywords": [
     "ai-sdk",
@@ -91,7 +91,6 @@
     "node": ">=18"
   },
   "publishConfig": {
-    "access": "public",
-    "tag": "beta"
+    "access": "public"
   }
 }
