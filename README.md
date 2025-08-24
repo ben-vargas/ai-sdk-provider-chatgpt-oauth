@@ -34,6 +34,30 @@ yarn add ai-sdk-provider-chatgpt-oauth
 # or
 pnpm add ai-sdk-provider-chatgpt-oauth
 ```
+ 
+### AI SDK v4 Channel (this branch)
+
+This branch targets Vercel AI SDK v4 and is published under a separate npm dist-tag.
+
+- Install via dist-tag:
+
+```bash
+npm install ai-sdk-provider-chatgpt-oauth@ai-sdk-v4
+# or
+yarn add ai-sdk-provider-chatgpt-oauth@ai-sdk-v4
+# or
+pnpm add ai-sdk-provider-chatgpt-oauth@ai-sdk-v4
+```
+
+- Pin a specific v4 build:
+
+```bash
+npm install ai-sdk-provider-chatgpt-oauth@1.0.0-ai-sdk-v4
+```
+
+Notes:
+- The `ai-sdk-v4` channel keeps compatibility with AI SDK v4.
+- The `latest` tag remains on the mainline release series.
 
 ## Prerequisites
 
