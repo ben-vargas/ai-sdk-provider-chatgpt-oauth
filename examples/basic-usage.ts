@@ -10,8 +10,6 @@ async function main() {
     const result = await generateText({
       model: provider('gpt-5'),
       prompt: 'Write a haiku about TypeScript',
-      temperature: 0.7,
-      maxTokens: 100,
     });
 
     console.log('Generated text:', result.text);

@@ -1,11 +1,10 @@
 import type {
-  LanguageModelV2,
-  LanguageModelV2CallOptions,
-  LanguageModelV2CallWarning,
-  LanguageModelV2StreamPart,
-  LanguageModelV2Content,
-  LanguageModelV2Usage,
-  LanguageModelV2FinishReason,
+  LanguageModelV1,
+  LanguageModelV1CallOptions,
+  LanguageModelV1CallWarning,
+  LanguageModelV1StreamPart,
+  LanguageModelV1FunctionToolCall,
+  LanguageModelV1FinishReason,
 } from '@ai-sdk/provider';
 import type { FetchFunction } from '@ai-sdk/provider-utils';
 import { readFileSync } from 'fs';
@@ -45,15 +44,14 @@ type ChatGPTOAuthConfig = {
   reasoningSummary?: ReasoningSummary | null;
 };
 
-export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
-  readonly specificationVersion = 'v2' as const;
+export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
+  readonly specificationVersion = 'v1' as const;
+  readonly defaultObjectGenerationMode = 'json' as const;
+  readonly supportsImageUrls = true;
+  readonly supportsStructuredOutputs = true;
+
   readonly modelId: ChatGPTOAuthModelId;
   readonly provider: string;
-  readonly supportsImageUrls = true;
-  readonly supportsUrls = false;
-  readonly supportedUrls: Record<string, RegExp[]> = {
-    'image/*': [/^https?:\/\/.*$/],
-  };
 
   private readonly config: ChatGPTOAuthConfig;
 
@@ -124,34 +122,26 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
     };
   }
 
-  private async getArgs(options: LanguageModelV2CallOptions) {
-    const warnings: LanguageModelV2CallWarning[] = [];
+  private async getArgs(options: LanguageModelV1CallOptions) {
+    const warnings: LanguageModelV1CallWarning[] = [];
 
     const { messages: chatgptMessages, warnings: messageWarnings } = convertToChatGPTMessages({
       prompt: options.prompt,
-      systemMessageMode: 'user',
+      systemMessageMode: 'system',
     });
     warnings.push(...messageWarnings);
 
-    const {
-      tools,
-      toolChoice,
-      warnings: toolWarnings,
-      toolMapping,
-    } = prepareChatGPTTools({
-      tools: options.tools,
-      toolChoice: options.toolChoice,
+    // Tools only come from regular mode in v1
+    const mode = options.mode ?? { type: 'regular' as const };
+    const { tools, warnings: toolWarnings, toolMapping } = prepareChatGPTTools({
+      tools: mode.type === 'regular' ? mode.tools : undefined,
     });
     warnings.push(...toolWarnings);
 
     const reasoning = this.createReasoningParam();
     const include: string[] = [];
-
-    // Request encrypted COT if reasoning is enabled and we're not storing responses
     if (reasoning) {
       include.push('reasoning.encrypted_content');
-
-      // Warn about potentially problematic summary values
       if (reasoning.summary === 'none' || reasoning.summary === 'concise') {
         warnings.push({
           type: 'other',
@@ -160,12 +150,40 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
       }
     }
 
+    // Compose system instructions: base instructions + any system messages from the prompt
+    const systemInstructions = (() => {
+      const sysParts = [] as string[];
+      sysParts.push(codexInstructions);
+      try {
+        for (const m of options.prompt) {
+          if (m.role === 'system' && typeof m.content === 'string' && m.content.trim() !== '') {
+            sysParts.push(m.content);
+          }
+        }
+        // In object-json mode, add explicit hardening to maximize JSON-only responses.
+        if ((options.mode?.type ?? 'regular') === 'object-json') {
+          sysParts.push(
+            [
+              'CRITICAL: Output MUST be valid JSON only.',
+              '- Do not include markdown, code fences, or commentary.',
+              '- Do not include fields not requested by the schema.',
+              '- The first character must be { or [ and the last must be } or ].',
+            ].join('\n')
+          );
+        }
+      } catch {}
+      return sysParts.filter(Boolean).join('\n\n');
+    })();
+
+    // Determine tool choice behavior: require a tool call on first turn, allow auto after tool results
+    const hasToolMessages = options.prompt?.some?.((m: any) => m.role === 'tool');
+
     const args: ChatGPTRequest = {
       model: this.modelId,
-      instructions: codexInstructions,
+      instructions: systemInstructions,
       input: chatgptMessages,
       tools,
-      tool_choice: toolChoice,
+      tool_choice: tools && tools.length > 0 ? (hasToolMessages ? 'auto' : 'required') : 'none',
       parallel_tool_calls: false,
       reasoning,
       store: false,
@@ -173,37 +191,31 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
       include,
     };
 
-    // ChatGPT backend doesn't support these parameters
-    // but we should warn if they're provided
+    // Warn for unsupported parameters
     if (options.temperature !== undefined) {
-      warnings.push({
-        type: 'other',
-        message: 'Temperature parameter is not supported by ChatGPT backend',
-      });
+      warnings.push({ type: 'other', message: 'Temperature parameter is not supported by ChatGPT backend' });
     }
     if (options.topP !== undefined) {
-      warnings.push({
-        type: 'other',
-        message: 'Top-p parameter is not supported by ChatGPT backend',
-      });
+      warnings.push({ type: 'other', message: 'Top-p parameter is not supported by ChatGPT backend' });
     }
-    if (options.maxOutputTokens !== undefined) {
-      warnings.push({
-        type: 'other',
-        message: 'Max tokens parameter is not supported by ChatGPT backend',
-      });
+    if ((options as any).maxOutputTokens !== undefined || options.maxTokens !== undefined) {
+      warnings.push({ type: 'other', message: 'Max tokens parameter is not supported by ChatGPT backend' });
     }
 
-    return { args, warnings, toolMapping };
+    return { args, warnings, toolMapping, mode };
   }
 
-  async doGenerate(options: LanguageModelV2CallOptions): Promise<{
-    content: LanguageModelV2Content[];
-    finishReason: LanguageModelV2FinishReason;
-    usage: LanguageModelV2Usage;
-    warnings: LanguageModelV2CallWarning[];
+  async doGenerate(options: LanguageModelV1CallOptions): Promise<{
+    text?: string;
+    toolCalls?: LanguageModelV1FunctionToolCall[];
+    finishReason: LanguageModelV1FinishReason;
+    usage: { promptTokens: number; completionTokens: number };
+    rawCall: { rawPrompt: unknown; rawSettings: Record<string, unknown> };
+    request?: { body?: string };
+    response?: { id?: string; timestamp?: Date; modelId?: string };
+    warnings?: LanguageModelV1CallWarning[];
   }> {
-    const { args, warnings, toolMapping } = await this.getArgs(options);
+    const { args, warnings, toolMapping, mode } = await this.getArgs(options);
     const authHeaders = await this.getAuthHeaders();
 
     // Debug logging
@@ -246,103 +258,90 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
     }
 
     const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body');
-    }
+    if (!reader) throw new Error('No response body');
 
-    const content: LanguageModelV2Content[] = [];
-    let finishReason: LanguageModelV2FinishReason = 'stop';
-    let usage = {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    };
+    let text = '';
+    const toolCallsCollected: LanguageModelV1FunctionToolCall[] = [];
+    let finishReason: LanguageModelV1FinishReason = 'stop';
+    let usage = { promptTokens: 0, completionTokens: 0 };
 
-    let currentText = '';
     const activeToolCalls = new Map<string, { name: string; args: string }>();
     const decoder = new TextDecoder();
     let buffer = '';
 
-    // Process all the streamed events
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              break;
-            }
-
-            try {
-              const event = JSON.parse(data);
-
-              if (process.env.DEBUG) {
-                console.warn('SSE Event (doGenerate):', JSON.stringify(event, null, 2));
-              }
-
-              // Handle ChatGPT backend event format
-              switch (event.type) {
-                case 'response.output_item.added':
-                  // Handle function call initialization
-                  if (event.item && event.item.type === 'function_call') {
-                    const id = event.item.id || `call_${Date.now()}`;
-                    activeToolCalls.set(id, {
-                      name: 'pending',
-                      args: '',
-                    });
-                  }
-                  break;
-
-                case 'response.output_item.done':
-                  // Handle completed function calls
-                  if (event.item && event.item.type === 'function_call' && event.item.name) {
-                    const toolCallId = event.item.id;
-                    if (activeToolCalls.has(toolCallId)) {
-                      const toolCall = activeToolCalls.get(toolCallId)!;
-                      toolCall.name = event.item.name;
-                      toolCall.args = event.item.arguments || '';
-
-                      // Keep the mapping for later processing
-                      activeToolCalls.set(toolCallId, {
-                        name: toolCall.name,
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') break;
+          try {
+            const event = JSON.parse(data);
+            switch (event.type) {
+              case 'response.output_item.added':
+                if (event.item && event.item.type === 'function_call') {
+                  const id = event.item.id || `call_${Date.now()}`;
+                  activeToolCalls.set(id, { name: 'pending', args: '' });
+                }
+                break;
+              case 'response.function_call_arguments.delta':
+                if (event.item_id && event.delta && activeToolCalls.has(event.item_id)) {
+                  const active = activeToolCalls.get(event.item_id)!;
+                  active.args += event.delta;
+                }
+                break;
+              case 'response.output_item.done':
+                if (event.item && event.item.type === 'function_call' && event.item.name) {
+                  const toolCallId = event.item.id;
+                  if (activeToolCalls.has(toolCallId)) {
+                    const toolCall = activeToolCalls.get(toolCallId)!;
+                    toolCall.name = event.item.name;
+                    toolCall.args = toolCall.args || event.item.arguments || '';
+                    const originalName = toolMapping.get(toolCall.name) || toolCall.name;
+                    try {
+                      const validated = validateToolResponse(toolCall.name, toolCall.args);
+                      toolCallsCollected.push({
+                        toolCallType: 'function',
+                        toolCallId,
+                        toolName: originalName,
+                        args: JSON.stringify(validated),
+                      });
+                    } catch (error) {
+                      toolCallsCollected.push({
+                        toolCallType: 'function',
+                        toolCallId,
+                        toolName: originalName,
                         args: toolCall.args,
                       });
+                      warnings.push({
+                        type: 'other',
+                        message: error instanceof Error ? error.message : 'Failed to parse tool arguments',
+                      });
                     }
+                    activeToolCalls.delete(toolCallId);
                   }
-                  break;
-
-                case 'response.output_text.delta':
-                  currentText += event.delta || '';
-                  break;
-
-                case 'response.completed':
-                  finishReason = mapChatGPTFinishReason(event.status);
-                  // Debug: log the entire event to understand structure
-                  if (process.env.DEBUG_USAGE) {
-                    console.warn('response.done event:', JSON.stringify(event, null, 2));
-                  }
-                  // Usage data is nested under response.usage
-                  if (event.response?.usage) {
-                    usage = {
-                      inputTokens: event.response.usage.input_tokens || 0,
-                      outputTokens: event.response.usage.output_tokens || 0,
-                      totalTokens:
-                        (event.response.usage.input_tokens || 0) +
-                        (event.response.usage.output_tokens || 0),
-                    };
-                  }
-                  break;
-              }
-            } catch {
-              // Ignore parse errors
+                }
+                break;
+              case 'response.output_text.delta':
+                text += event.delta || '';
+                break;
+              case 'response.completed':
+                finishReason = mapChatGPTFinishReason(event.status);
+                if (event.response?.usage) {
+                  usage = {
+                    promptTokens: event.response.usage.input_tokens || 0,
+                    completionTokens: event.response.usage.output_tokens || 0,
+                  };
+                }
+                break;
             }
+          } catch {
+            // ignore
           }
         }
       }
@@ -350,49 +349,40 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
       reader.releaseLock();
     }
 
-    if (currentText) {
-      content.push({ type: 'text', text: currentText });
-    }
-
-    for (const [id, toolCall] of activeToolCalls) {
-      if (toolCall.name && toolCall.args) {
-        // Map back to original tool names using toolMapping
-        const originalName = toolMapping.get(toolCall.name) || toolCall.name;
-
-        try {
-          // Validate tool response against expected schema
-          const args = validateToolResponse(toolCall.name, toolCall.args);
-          content.push({
-            type: 'tool-call',
-            toolCallId: id,
-            toolName: originalName,
-            input: JSON.stringify(args),
-          });
-        } catch (error) {
-          // Include validation errors in warnings instead of silently failing
-          warnings.push({
-            type: 'other',
-            message: error instanceof Error ? error.message : 'Failed to parse tool arguments',
-          });
-          console.error('Tool response validation error:', error);
+    // object-json mode: extract JSON from text
+    if (mode.type === 'object-json' && text) {
+      try {
+        // Keep it simple: ensure it's a JSON object; if it's not, try to trim
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          const extracted = text.slice(firstBrace, lastBrace + 1);
+          JSON.parse(extracted);
+          text = extracted;
         }
+      } catch {
+        // leave as-is
       }
     }
 
     return {
-      content,
+      text: text || undefined,
+      toolCalls: toolCallsCollected.length ? toolCallsCollected : undefined,
       finishReason,
       usage,
-      warnings,
+      rawCall: { rawPrompt: args.input, rawSettings: {} },
+      request: { body: JSON.stringify(args) },
+      response: { id: crypto.randomUUID(), timestamp: new Date(), modelId: this.modelId },
+      warnings: warnings.length ? warnings : undefined,
     };
   }
 
-  async doStream(options: LanguageModelV2CallOptions): Promise<{
-    stream: ReadableStream<LanguageModelV2StreamPart>;
-    usage: Promise<LanguageModelV2Usage>;
-    warnings: LanguageModelV2CallWarning[];
+  async doStream(options: LanguageModelV1CallOptions): Promise<{
+    stream: ReadableStream<LanguageModelV1StreamPart>;
+    rawCall: { rawPrompt: unknown; rawSettings: Record<string, unknown> };
+    warnings?: LanguageModelV1CallWarning[];
   }> {
-    const { args, warnings, toolMapping } = await this.getArgs(options);
+    const { args, warnings, toolMapping, mode } = await this.getArgs(options);
     const authHeaders = await this.getAuthHeaders();
 
     const response = await fetch(`${this.config.baseURL}/codex/responses`, {
@@ -425,147 +415,107 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
     }
 
     const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body');
-    }
-
-    let usage: LanguageModelV2Usage = {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    };
+    if (!reader) throw new Error('No response body');
 
     const activeToolCalls = new Map<string, { name: string; args: string }>();
+    let accumulatedText = '';
 
-    const stream = new ReadableStream<LanguageModelV2StreamPart>({
+    const stream = new ReadableStream<LanguageModelV1StreamPart>({
       async start(controller) {
         const decoder = new TextDecoder();
         let buffer = '';
-
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
-
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') {
-                  controller.close();
-                  return;
-                }
-
-                try {
-                  const event = JSON.parse(data);
-
-                  if (process.env.DEBUG) {
-                    console.warn('SSE Event (doStream):', JSON.stringify(event, null, 2));
-                  }
-
-                  // Handle ChatGPT backend event format
-                  switch (event.type) {
-                    case 'response.output_item.added':
-                      // Handle function call initialization
-                      if (event.item && event.item.type === 'function_call') {
-                        const id = event.item.id || `call_${Date.now()}`;
-                        activeToolCalls.set(id, {
-                          name: 'pending',
-                          args: '',
-                        });
-                      }
-                      break;
-
-                    case 'response.output_item.done':
-                      // Handle completed function calls
-                      if (event.item && event.item.type === 'function_call' && event.item.name) {
-                        const toolCallId = event.item.id;
-                        if (activeToolCalls.has(toolCallId)) {
-                          const toolCall = activeToolCalls.get(toolCallId)!;
-                          toolCall.name = event.item.name;
-                          toolCall.args = event.item.arguments || '';
-
-                          // Map back to original tool names using toolMapping
-                          const originalName = toolMapping.get(toolCall.name) || toolCall.name;
-
-                          try {
-                            // Validate tool response against expected schema
-                            const validatedArgs = validateToolResponse(
-                              toolCall.name,
-                              toolCall.args
-                            );
-                            controller.enqueue({
-                              type: 'tool-call',
-                              toolCallId: toolCallId,
-                              toolName: originalName,
-                              input: JSON.stringify(validatedArgs),
-                            });
-                          } catch (error) {
-                            // Log validation error but still emit the tool call with original args
-                            console.error('Tool response validation error in stream:', error);
-                            controller.enqueue({
-                              type: 'tool-call',
-                              toolCallId: toolCallId,
-                              toolName: originalName,
-                              input: toolCall.args,
-                            });
-                          }
-
-                          activeToolCalls.delete(toolCallId);
-                        }
-                      }
-                      break;
-
-                    case 'response.output_text.delta':
-                      if (event.delta) {
-                        controller.enqueue({
-                          type: 'text-delta',
-                          id: `text-${Date.now()}`,
-                          delta: event.delta,
-                        });
-                      }
-                      break;
-
-                    case 'response.function_call_arguments.delta':
-                      // Handle incremental tool call arguments
-                      if (event.item_id && event.delta) {
-                        if (activeToolCalls.has(event.item_id)) {
-                          const active = activeToolCalls.get(event.item_id)!;
-                          active.args += event.delta;
-
+              if (!line.startsWith('data: ')) continue;
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                controller.close();
+                return;
+              }
+              try {
+                const event = JSON.parse(data);
+                switch (event.type) {
+                  case 'response.output_item.added':
+                    if (event.item && event.item.type === 'function_call') {
+                      const id = event.item.id || `call_${Date.now()}`;
+                      activeToolCalls.set(id, { name: 'pending', args: '' });
+                    }
+                    break;
+                  case 'response.function_call_arguments.delta':
+                    if (event.item_id && event.delta && activeToolCalls.has(event.item_id)) {
+                      const active = activeToolCalls.get(event.item_id)!;
+                      active.args += event.delta;
+                    }
+                    break;
+                  case 'response.output_item.done':
+                    if (event.item && event.item.type === 'function_call' && event.item.name) {
+                      const toolCallId = event.item.id;
+                      if (activeToolCalls.has(toolCallId)) {
+                        const toolCall = activeToolCalls.get(toolCallId)!;
+                        toolCall.name = event.item.name;
+                        toolCall.args = toolCall.args || event.item.arguments || '';
+                        const originalName = toolMapping.get(toolCall.name) || toolCall.name;
+                        try {
+                          const validated = validateToolResponse(toolCall.name, toolCall.args);
                           controller.enqueue({
-                            type: 'tool-input-delta',
-                            id: event.item_id,
-                            delta: event.delta,
+                            type: 'tool-call',
+                            toolCallType: 'function',
+                            toolCallId,
+                            toolName: originalName,
+                            args: JSON.stringify(validated),
+                          });
+                        } catch (error) {
+                          controller.enqueue({
+                            type: 'tool-call',
+                            toolCallType: 'function',
+                            toolCallId,
+                            toolName: originalName,
+                            args: toolCall.args,
                           });
                         }
+                        activeToolCalls.delete(toolCallId);
                       }
-                      break;
-
-                    case 'response.completed':
-                      // Usage data is nested under response.usage
-                      if (event.response?.usage) {
-                        usage = {
-                          inputTokens: event.response.usage.input_tokens || 0,
-                          outputTokens: event.response.usage.output_tokens || 0,
-                          totalTokens:
-                            (event.response.usage.input_tokens || 0) +
-                            (event.response.usage.output_tokens || 0),
-                        };
+                    }
+                    break;
+                  case 'response.output_text.delta':
+                    if (event.delta) {
+                      if (mode.type === 'object-json') {
+                        accumulatedText += event.delta;
+                      } else {
+                        controller.enqueue({ type: 'text-delta', textDelta: event.delta });
                       }
-                      controller.enqueue({
-                        type: 'finish',
-                        finishReason: mapChatGPTFinishReason(event.status),
-                        usage,
-                      });
-                      break;
-                  }
-                } catch {
-                  // Ignore parse errors
+                    }
+                    break;
+                  case 'response.completed':
+                    if (mode.type === 'object-json' && accumulatedText) {
+                      // try to extract json
+                      let toEmit = accumulatedText;
+                      const firstBrace = toEmit.indexOf('{');
+                      const lastBrace = toEmit.lastIndexOf('}');
+                      if (firstBrace !== -1 && lastBrace !== -1) {
+                        toEmit = toEmit.slice(firstBrace, lastBrace + 1);
+                      }
+                      controller.enqueue({ type: 'text-delta', textDelta: toEmit });
+                    }
+                    const finishReason = mapChatGPTFinishReason(event.status);
+                    controller.enqueue({
+                      type: 'finish',
+                      finishReason,
+                      usage: {
+                        promptTokens: event.response?.usage?.input_tokens || 0,
+                        completionTokens: event.response?.usage?.output_tokens || 0,
+                      },
+                    });
+                    break;
                 }
+              } catch {
+                // ignore parse error
               }
             }
           }
@@ -573,15 +523,14 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV2 {
           controller.error(error);
         } finally {
           reader.releaseLock();
-          controller.close();
         }
       },
     });
 
     return {
       stream,
-      usage: Promise.resolve(usage),
-      warnings,
+      rawCall: { rawPrompt: args.input, rawSettings: {} },
+      warnings: warnings.length ? warnings : undefined,
     };
   }
 }

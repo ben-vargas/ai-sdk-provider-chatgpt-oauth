@@ -1,6 +1,6 @@
 # AI SDK Provider for ChatGPT OAuth (gpt-5)
 
-A [Vercel AI SDK](https://sdk.vercel.ai) v5 provider for accessing GPT-5 models through ChatGPT OAuth authentication. This provider enables you to use ChatGPT Plus, Pro, or Teams subscriptions with the AI SDK.
+A [Vercel AI SDK](https://sdk.vercel.ai) v4 provider for accessing GPT-5 models through ChatGPT OAuth authentication. This provider enables you to use ChatGPT Plus, Pro, or Teams subscriptions with the AI SDK.
 
 ## Features
 
@@ -8,7 +8,7 @@ A [Vercel AI SDK](https://sdk.vercel.ai) v5 provider for accessing GPT-5 models 
 - 🔐 **OAuth Support** - Automatic token management and refresh
 - 🔄 **Full Streaming** - Real-time streaming responses with SSE
 - 🛠️ **Codex-Style Tools** - Shell command and task planning tools
-- 📦 **AI SDK v5 Compatible** - Works seamlessly with Vercel AI SDK v5
+- 📦 **AI SDK v4 Compatible** - Works seamlessly with Vercel AI SDK v4
 - 🔥 **TypeScript Ready** - Full TypeScript support with type definitions
 - 📊 **Usage Tracking** - Accurate token usage and telemetry
 - 📝 **JSON Generation** - Generate structured JSON through prompt engineering (see [examples](./examples/))
@@ -90,15 +90,11 @@ console.log(result.text);
 import { generateText } from 'ai';
 import { createChatGPTOAuth } from 'ai-sdk-provider-chatgpt-oauth';
 
-const provider = createChatGPTOAuth({
-  autoRefresh: true, // Enable automatic token refresh
-});
+const provider = createChatGPTOAuth({ autoRefresh: true });
 
 const result = await generateText({
   model: provider('gpt-5'),
-  prompt: 'Explain quantum computing',
-  temperature: 0.7,
-  maxTokens: 500,
+  prompt: 'Explain quantum computing in simple terms',
 });
 ```
 
@@ -166,6 +162,9 @@ const result = await generateText({
 ```
 
 **Note**: Custom functionality must be implemented as CLI tools. See [Tool Calling Guide](./docs/tool-calling.md) for details.
+
+### Parameters Not Supported
+- `temperature`, `topP`, `maxTokens` are ignored by the ChatGPT OAuth backend. See [limitations](./docs/limitations.md).
 
 ## Configuration Options
 

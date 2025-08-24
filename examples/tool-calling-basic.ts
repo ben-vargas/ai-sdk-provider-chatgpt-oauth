@@ -1,6 +1,7 @@
-import { generateText } from 'ai';
+import { generateText, tool } from 'ai';
 import { createChatGPTOAuth } from '../src';
 import { execSync } from 'child_process';
+import { z } from 'zod';
 
 /**
  * Basic Tool Calling Example
@@ -17,49 +18,49 @@ async function main() {
   
   const result = await generateText({
     model: provider('gpt-5'),
-    prompt: 'Count how many TypeScript files are in this directory',
+    prompt:
+      [
+        'You MUST use the bash tool to solve this task.',
+        'Task: Count how many TypeScript files (*.ts) are in the current directory.',
+        'After the tool runs, read its output and respond with ONLY the integer count. No extra words.',
+      ].join('\n'),
+    maxToolRoundtrips: 1,
     tools: {
-      bash: {
+      bash: tool({
         description: 'Execute bash commands',
-        parameters: {
-          type: 'object',
-          properties: {
-            command: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Command array to execute',
-            },
-          },
-          required: ['command'],
-        },
+        parameters: z.object({
+          command: z.array(z.string()).describe('Command array to execute, e.g. ["bash","-lc","ls"]'),
+        }),
         execute: async ({ command }) => {
-          // Handle the command array format
-          let cmd: string;
-          if (Array.isArray(command)) {
-            // Extract actual command from ["bash", "-lc", "command"] format
-            cmd = command[command.length - 1];
-          } else {
-            cmd = command;
-          }
-          
+          // Execute the EXACT command provided by the model.
+          // WARNING: This executes arbitrary commands. Sandbox/validate in production.
+          const pretty = Array.isArray(command) ? command.join(' ') : String(command);
           console.log(`\n📟 Tool Called: bash`);
-          console.log(`   Command: ${cmd.substring(0, 50)}${cmd.length > 50 ? '...' : ''}`);
-          
+          console.log(`   Command: ${pretty}`);
+
           try {
-            // Execute a simple ls command to count .ts files
-            const output = execSync('ls -1 *.ts 2>/dev/null | wc -l', { 
-              encoding: 'utf-8',
-              shell: '/bin/bash' 
-            });
-            const count = output.trim();
-            console.log(`   Result: ${count} TypeScript files found`);
-            return `${count}`;
-          } catch (error) {
-            console.log('   Result: Error counting files');
-            return 'Error: Could not count files';
+            if (Array.isArray(command) && command.length > 0) {
+              const bin = command[0];
+              const args = command.slice(1);
+              const { spawnSync } = await import('node:child_process');
+              const res = spawnSync(bin, args, { encoding: 'utf-8' });
+              const out = (res.stdout || '').trim();
+              const err = (res.stderr || '').trim();
+              if (err) console.log(`   Stderr: ${err.substring(0, 200)}`);
+              console.log(`   Result: ${(out || err).substring(0, 80)}${(out || err).length > 80 ? '...' : ''}`);
+              return out || err || '';
+            } else {
+              const output = execSync(String(command), { encoding: 'utf-8', shell: '/bin/bash' });
+              const out = (output || '').trim();
+              console.log(`   Result: ${out.substring(0, 80)}${out.length > 80 ? '...' : ''}`);
+              return out;
+            }
+          } catch {
+            console.log('   Result: Error executing command');
+            return 'Error: command failed';
           }
         },
-      },
+      }),
     },
   });
 

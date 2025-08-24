@@ -10,8 +10,6 @@ async function main() {
     const result = await streamText({
       model: provider('gpt-5'),
       prompt: 'Explain quantum computing in simple terms',
-      temperature: 0.7,
-      maxTokens: 500,
     });
 
     console.log('Streaming response:');

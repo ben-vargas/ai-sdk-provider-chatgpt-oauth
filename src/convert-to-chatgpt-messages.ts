@@ -1,87 +1,55 @@
-import type { LanguageModelV2Prompt, LanguageModelV2CallWarning } from '@ai-sdk/provider';
+import type { LanguageModelV1Prompt, LanguageModelV1CallWarning } from '@ai-sdk/provider';
 import { ChatGPTMessage } from './chatgpt-oauth-settings';
 
 export function convertToChatGPTMessages({
   prompt,
   systemMessageMode = 'user',
 }: {
-  prompt: LanguageModelV2Prompt;
+  prompt: LanguageModelV1Prompt;
   systemMessageMode?: 'user' | 'system';
 }): {
   messages: ChatGPTMessage[];
-  warnings: LanguageModelV2CallWarning[];
+  warnings: LanguageModelV1CallWarning[];
 } {
-  const warnings: LanguageModelV2CallWarning[] = [];
+  const warnings: LanguageModelV1CallWarning[] = [];
   const messages: ChatGPTMessage[] = [];
 
   for (const message of prompt) {
     switch (message.role) {
       case 'system': {
         if (systemMessageMode === 'user') {
-          messages.push({
-            role: 'user',
-            content: message.content,
-          });
-
-          warnings.push({
-            type: 'other',
-            message: 'System messages are converted to user messages',
-          });
+          messages.push({ role: 'user', content: message.content });
+          warnings.push({ type: 'other', message: 'System messages are converted to user messages' });
         } else {
-          messages.push({
-            role: 'user',
-            content: message.content,
-          });
+          // In 'system' mode, we do not include system messages in input messages.
+          // They should be forwarded via the ChatGPT `instructions` field instead.
         }
         break;
       }
 
       case 'user': {
-        if (message.content.length === 1 && message.content[0].type === 'text') {
-          messages.push({
-            role: 'user',
-            content: message.content[0].text,
-          });
+        if (typeof message.content === 'string') {
+          messages.push({ role: 'user', content: message.content });
         } else {
           const parts: string[] = [];
-
           for (const part of message.content) {
-            switch (part.type) {
-              case 'text': {
-                parts.push(part.text);
-                break;
+            if (part.type === 'text') {
+              parts.push(part.text);
+            } else if (part.type === 'image') {
+              if (typeof part.image === 'string') {
+                parts.push(`[Image: ${part.image}]`);
+              } else if (part.image && 'url' in part.image && typeof (part.image as any).url === 'string') {
+                parts.push(`[Image: ${(part.image as any).url}]`);
+              } else {
+                warnings.push({ type: 'other', message: 'Unsupported image content; converted to placeholder.' });
+                parts.push('[Image]');
               }
-
-              case 'file': {
-                if (part.mediaType.startsWith('image/')) {
-                  if (part.data instanceof URL) {
-                    parts.push(`[Image: ${part.data.href}]`);
-                  } else if (typeof part.data === 'string') {
-                    parts.push(`[Image: data:${part.mediaType};base64,${part.data}]`);
-                  } else {
-                    const base64String = convertUint8ArrayToBase64(part.data as Uint8Array);
-                    parts.push(`[Image: data:${part.mediaType};base64,${base64String}]`);
-                  }
-                } else {
-                  parts.push(`[File: ${part.filename || 'unnamed'}]`);
-                }
-                break;
-              }
-
-              default: {
-                const unknownPart = part as { type: string };
-                warnings.push({
-                  type: 'other',
-                  message: `Unsupported content part type: ${unknownPart.type}`,
-                });
-              }
+            } else {
+              const unknownPart = part as { type: string };
+              warnings.push({ type: 'other', message: `Unsupported content part type: ${unknownPart.type}` });
             }
           }
-
-          messages.push({
-            role: 'user',
-            content: parts.join('\n'),
-          });
+          messages.push({ role: 'user', content: parts.join('\n') });
         }
         break;
       }
@@ -89,14 +57,11 @@ export function convertToChatGPTMessages({
       case 'assistant': {
         let content: string | null = null;
 
-        if (message.content.length > 0) {
-          const textParts = message.content
-            .filter((part) => part.type === 'text')
-            .map((part) => part.text);
-
-          if (textParts.length > 0) {
-            content = textParts.join('');
-          }
+        if (typeof message.content === 'string') {
+          content = message.content;
+        } else if (message.content.length > 0) {
+          const textParts = message.content.filter((part) => part.type === 'text').map((part) => part.text);
+          if (textParts.length > 0) content = textParts.join('');
         }
 
         const chatGPTMessage: ChatGPTMessage = {
@@ -104,21 +69,18 @@ export function convertToChatGPTMessages({
           content,
         };
 
-        if (message.content.some((part) => part.type === 'tool-call')) {
+        if (Array.isArray(message.content)) {
           const toolCalls = message.content
-            .filter((part) => part.type === 'tool-call')
-            .map((part) => ({
+            .filter((part) => (part as any).type === 'tool-call')
+            .map((part: any) => ({
               id: part.toolCallId,
               type: 'function' as const,
               function: {
                 name: part.toolName,
-                arguments: JSON.stringify(part.input),
+                arguments: typeof part.args === 'string' ? part.args : JSON.stringify(part.input ?? part.args ?? {}),
               },
             }));
-
-          if (toolCalls.length > 0) {
-            chatGPTMessage.tool_calls = toolCalls;
-          }
+          if (toolCalls.length > 0) chatGPTMessage.tool_calls = toolCalls;
         }
 
         messages.push(chatGPTMessage);
@@ -126,18 +88,17 @@ export function convertToChatGPTMessages({
       }
 
       case 'tool': {
-        for (const toolResponse of message.content) {
+        for (const toolResponse of message.content as any[]) {
           let content: string;
-          if (toolResponse.output.type === 'text' || toolResponse.output.type === 'error-text') {
-            content = toolResponse.output.value;
+          const output = toolResponse.result ?? toolResponse.output;
+          if (output?.type === 'text' || output?.type === 'error-text') {
+            content = output.value;
+          } else if (typeof output === 'string') {
+            content = output;
           } else {
-            content = JSON.stringify(toolResponse.output.value);
+            content = JSON.stringify(output?.value ?? output ?? {});
           }
-          messages.push({
-            role: 'tool',
-            content,
-            tool_call_id: toolResponse.toolCallId,
-          });
+          messages.push({ role: 'tool', content, tool_call_id: toolResponse.toolCallId });
         }
         break;
       }

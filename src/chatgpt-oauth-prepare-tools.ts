@@ -1,8 +1,7 @@
 import type {
-  LanguageModelV2FunctionTool,
-  LanguageModelV2ProviderDefinedTool,
-  LanguageModelV2ToolChoice,
-  LanguageModelV2CallWarning,
+  LanguageModelV1FunctionTool,
+  LanguageModelV1ProviderDefinedTool,
+  LanguageModelV1CallWarning,
 } from '@ai-sdk/provider';
 import type { ChatGPTTool, ChatGPTToolChoice } from './chatgpt-oauth-settings';
 
@@ -73,17 +72,14 @@ When all steps are completed, call update_plan one last time with all steps mark
 
 export function prepareChatGPTTools({
   tools,
-  toolChoice,
 }: {
-  tools?: Array<LanguageModelV2FunctionTool | LanguageModelV2ProviderDefinedTool>;
-  toolChoice?: LanguageModelV2ToolChoice;
+  tools?: Array<LanguageModelV1FunctionTool | LanguageModelV1ProviderDefinedTool>;
 }): {
   tools?: ChatGPTTool[];
-  toolChoice?: ChatGPTToolChoice;
-  warnings: LanguageModelV2CallWarning[];
+  warnings: LanguageModelV1CallWarning[];
   toolMapping: Map<string, string>;
 } {
-  const warnings: LanguageModelV2CallWarning[] = [];
+  const warnings: LanguageModelV1CallWarning[] = [];
   const toolMapping = new Map<string, string>();
 
   // ChatGPT backend only supports its own predefined tools (shell and update_plan)
@@ -140,32 +136,8 @@ export function prepareChatGPTTools({
     }
   }
 
-  // Handle tool choice
-  let chatGPTToolChoice: ChatGPTToolChoice | undefined;
-
-  if (toolChoice === undefined && chatGPTTools.length > 0) {
-    chatGPTToolChoice = 'auto';
-  } else if (toolChoice && typeof toolChoice === 'object') {
-    if (toolChoice.type === 'auto') {
-      chatGPTToolChoice = 'auto';
-    } else if (toolChoice.type === 'none') {
-      chatGPTToolChoice = 'none';
-    } else if (toolChoice.type === 'required') {
-      chatGPTToolChoice = 'required';
-    } else if (toolChoice.type === 'tool') {
-      // Specific tool choice not supported, default to auto
-      chatGPTToolChoice = 'auto';
-      warnings.push({
-        type: 'unsupported-setting',
-        setting: 'toolChoice',
-        details: 'Specific tool choice is not supported',
-      });
-    }
-  }
-
   return {
     tools: chatGPTTools,
-    toolChoice: chatGPTToolChoice,
     warnings,
     toolMapping,
   };

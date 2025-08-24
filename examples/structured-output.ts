@@ -1,4 +1,4 @@
-import { generateObject, streamObject } from 'ai';
+import { generateText, streamText } from 'ai';
 import { createChatGPTOAuth } from '../src';
 import { z } from 'zod';
 
@@ -28,10 +28,11 @@ async function main() {
     })).optional(),
   });
 
-  const { object: apiResponse } = await generateObject({
+  const apiResponse = await generateJson({
     model,
     schema: apiResponseSchema,
-    prompt: 'Generate a successful API response for a user creation endpoint.',
+    task: 'Generate a successful API response for a user creation endpoint.',
+    shape: '{ "status": "success"|"error"|"pending", "code": number, "message": string, "data"?: { "id": string(uuid), "timestamp": string(datetime), "payload"?: any }, "errors"?: { "field": string, "message": string, "code": string }[] }',
   });
 
   console.log('API Response:');
@@ -67,10 +68,11 @@ async function main() {
     features: z.record(z.boolean()),
   });
 
-  const { object: config } = await generateObject({
+  const config = await generateJson({
     model,
     schema: configSchema,
-    prompt: 'Generate a production configuration for a Node.js web application.',
+    task: 'Generate a production configuration for a Node.js web application.',
+    shape: '{ "app": { "name": string, "version": string(semver), "environment": "development"|"staging"|"production", "debug": boolean }, "server": { "host": string, "port": number, "ssl": { "enabled": boolean, "cert"?: string, "key"?: string } }, "database": { "type": "postgres"|"mysql"|"mongodb", "host": string, "port": number, "name": string, "poolSize": number }, "features": Record<string, boolean> }',
   });
 
   console.log('Configuration:');
@@ -98,10 +100,11 @@ async function main() {
     Industry analysts from Goldman Sachs predict strong sales in the holiday season.
   `;
 
-  const { object: extraction } = await generateObject({
+  const extraction = await generateJson({
     model,
     schema: extractionSchema,
-    prompt: `Extract structured data from this text: ${text}`,
+    task: `Extract structured data from this text: ${text}`,
+    shape: '{ "entities": { "type": "person"|"organization"|"location"|"date"|"product", "value": string, "context"?: string }[], "sentiment": "positive"|"negative"|"neutral", "keyPhrases": string[], "summary": string }',
   });
 
   console.log('Extracted Data:');
@@ -136,10 +139,11 @@ async function main() {
     }),
   });
 
-  const { object: form } = await generateObject({
+  const form = await generateJson({
     model,
     schema: formSchema,
-    prompt: 'Generate a user registration form schema with proper validation rules.',
+    task: 'Generate a user registration form schema with proper validation rules.',
+    shape: '{ "fields": { "name": string, "type": "text"|"email"|"password"|"number"|"date"|"select"|"checkbox", "label": string, "placeholder"?: string, "required": boolean, "validation"?: { "minLength"?: number, "maxLength"?: number, "pattern"?: string, "min"?: number, "max"?: number }, "options"?: { "value": string, "label": string }[] }[], "submitButton": { "text": string, "action": string } }',
   });
 
   console.log('Form Schema:');
@@ -161,10 +165,11 @@ async function main() {
     }),
   });
 
-  const { object: queryResult } = await generateObject({
+  const queryResult = await generateJson({
     model,
     schema: queryResultSchema,
-    prompt: 'Generate a sample database query result for fetching user orders.',
+    task: 'Generate a sample database query result for fetching user orders.',
+    shape: '{ "query": string, "executionTime": number, "rowCount": number, "rows": Record<string, any>[], "metadata": { "database": string, "table": string, "indexes": string[] } }',
   });
 
   console.log('Query Result:');
@@ -196,26 +201,38 @@ async function main() {
       max: z.number(),
     }),
   });
-
-  const { partialObjectStream, object: dataset } = await streamObject({
+  console.log('Streaming dataset...');
+  const stream = await streamText({
     model,
-    schema: datasetSchema,
-    prompt: 'Generate a time series dataset with 10 records showing temperature readings.',
+    prompt: [
+      'You MUST output ONLY valid JSON and nothing else.',
+      'Do not use code fences, markdown, or explanations.',
+      'The first character must be { and the last must be }.',
+      'Return JSON matching the required schema exactly.',
+      'Expected JSON shape: { "metadata": { "title": string, "description": string, "recordCount": number, "createdAt": string(datetime) }, "records": { "id": number, "timestamp": string(datetime), "value": number, "category": string, "tags": string[] }[], "statistics": { "mean": number, "median": number, "standardDeviation": number, "min": number, "max": number } }',
+      '',
+      'Task: Generate a time series dataset with 10 records showing temperature readings.',
+    ].join('\n'),
   });
 
-  console.log('Streaming dataset...');
-  let recordCount = 0;
-  
-  for await (const partial of partialObjectStream) {
-    if (partial.records && partial.records.length > recordCount) {
-      recordCount = partial.records.length;
-      console.log(`  Received ${recordCount} records...`);
+  let buffer = '';
+  let lastCount = 0;
+  for await (const chunk of stream.textStream) {
+    buffer += chunk;
+    const partial = tryParseJson(buffer);
+    if (partial && Array.isArray(partial.records)) {
+      const n = partial.records.length;
+      if (n > lastCount) {
+        lastCount = n;
+        console.log(`  Received ${n} records...`);
+      }
     }
   }
 
-  const finalDataset = await dataset;
+  const finalText = await stream.text;
+  const dataset = datasetSchema.parse(JSON.parse(extractJson(finalText || '')));
   console.log('\nFinal Dataset:');
-  console.log(JSON.stringify(finalDataset, null, 2));
+  console.log(JSON.stringify(dataset, null, 2));
   console.log();
 
   console.log('✅ All structured output examples completed successfully!');
@@ -228,3 +245,46 @@ async function main() {
 }
 
 main().catch(console.error);
+
+// Helpers
+function extractJson(text: string): string {
+  const match = text.match(/[\{\[][\s\S]*[\}\]]/);
+  if (!match) throw new Error('No JSON found in model output');
+  return match[0];
+}
+
+function tryParseJson(text: string): any | null {
+  try {
+    const jsonText = extractJson(text);
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+}
+
+async function generateJson<T>({
+  model,
+  schema,
+  task,
+  shape,
+}: {
+  model: any;
+  schema: z.ZodType<T>;
+  task: string;
+  shape?: string;
+}): Promise<T> {
+  const prompt = [
+    'You MUST output ONLY valid JSON and nothing else.',
+    'Do not use code fences, markdown, or explanations.',
+    'The first character must be { and the last must be }.',
+    'Return JSON matching the required schema exactly.',
+    shape ? `Expected JSON shape: ${shape}` : undefined,
+    '',
+    `Task: ${task}`,
+  ].filter(Boolean).join('\n');
+
+  const res = await generateText({ model, prompt });
+  const jsonText = extractJson(res.text || '');
+  const parsed = JSON.parse(jsonText);
+  return schema.parse(parsed);
+}

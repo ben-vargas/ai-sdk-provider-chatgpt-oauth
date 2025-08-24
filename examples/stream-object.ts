@@ -1,4 +1,4 @@
-import { streamObject } from 'ai';
+import { streamText } from 'ai';
 import { createChatGPTOAuth } from '../src';
 import { z } from 'zod';
 
@@ -11,80 +11,95 @@ async function main() {
   // Example 1: Stream a simple object
   console.log('1️⃣  Streaming Simple Object\n');
   
-  const { partialObjectStream, object: finalRecipe } = await streamObject({
+  const recipeSchema = z.object({
+    name: z.string().describe('Recipe name'),
+    ingredients: z.array(z.string()).describe('List of ingredients'),
+    steps: z.array(z.string()).describe('Cooking steps'),
+    servings: z.number().describe('Number of servings'),
+  });
+  const recipeStream = await streamText({
     model,
-    schema: z.object({
-      name: z.string().describe('Recipe name'),
-      ingredients: z.array(z.string()).describe('List of ingredients'),
-      steps: z.array(z.string()).describe('Cooking steps'),
-      servings: z.number().describe('Number of servings'),
-    }),
-    prompt: 'Generate a detailed recipe for chocolate chip cookies.',
+    prompt: [
+      'You MUST output ONLY valid JSON and nothing else.',
+      'Do not use code fences, markdown, or explanations.',
+      'The first character must be { and the last must be }.',
+      'Return JSON matching the required schema exactly.',
+      'Expected JSON shape: { "name": string, "ingredients": string[], "steps": string[], "servings": number }',
+      '',
+      'Task: Generate a detailed recipe for chocolate chip cookies.',
+    ].join('\n'),
   });
 
   console.log('Streaming recipe...\n');
   
-  for await (const partialObject of partialObjectStream) {
-    // Clear the console and show the partial object as it builds
-    console.clear();
-    console.log('=== Partial Recipe (Building...) ===');
-    console.log(JSON.stringify(partialObject, null, 2));
+  let buffer = '';
+  for await (const chunk of recipeStream.textStream) {
+    buffer += chunk;
+    const partial = tryParseJson(buffer);
+    if (partial) {
+      console.clear();
+      console.log('=== Partial Recipe (Building...) ===');
+      console.log(JSON.stringify(partial, null, 2));
+    }
   }
 
   console.log('\n=== Final Recipe ===');
-  console.log(JSON.stringify(await finalRecipe, null, 2));
+  const finalRecipe = recipeSchema.parse(JSON.parse(extractJson((await recipeStream.text) || '')));
+  console.log(JSON.stringify(finalRecipe, null, 2));
   console.log();
 
   // Example 2: Stream a complex nested object
   console.log('2️⃣  Streaming Complex Object\n');
   
-  const { partialObjectStream: projectStream, object: finalProject } = await streamObject({
-    model,
-    schema: z.object({
-      projectName: z.string().describe('Project name'),
-      description: z.string().describe('Project description'),
-      team: z.array(z.object({
-        name: z.string(),
-        role: z.string(),
-        skills: z.array(z.string()),
-      })).describe('Team members'),
-      milestones: z.array(z.object({
-        title: z.string(),
-        description: z.string(),
-        dueDate: z.string(),
-        status: z.enum(['pending', 'in-progress', 'completed']),
-      })).describe('Project milestones'),
-      budget: z.object({
-        total: z.number(),
-        spent: z.number(),
-        remaining: z.number(),
-      }),
+  const projectSchema = z.object({
+    projectName: z.string().describe('Project name'),
+    description: z.string().describe('Project description'),
+    team: z.array(z.object({
+      name: z.string(),
+      role: z.string(),
+      skills: z.array(z.string()),
+    })).describe('Team members'),
+    milestones: z.array(z.object({
+      title: z.string(),
+      description: z.string(),
+      dueDate: z.string(),
+      status: z.enum(['pending', 'in-progress', 'completed']),
+    })).describe('Project milestones'),
+    budget: z.object({
+      total: z.number(),
+      spent: z.number(),
+      remaining: z.number(),
     }),
-    prompt: 'Generate a software development project plan for building a mobile app.',
+  });
+  const projectText = await streamText({
+    model,
+    prompt: [
+      'You MUST output ONLY valid JSON and nothing else.',
+      'Do not use code fences, markdown, or explanations.',
+      'The first character must be { and the last must be }.',
+      'Return JSON matching the required schema exactly.',
+      'Expected JSON shape: { "projectName": string, "description": string, "team": { "name": string, "role": string, "skills": string[] }[], "milestones": { "title": string, "description": string, "dueDate": string, "status": "pending"|"in-progress"|"completed" }[], "budget": { "total": number, "spent": number, "remaining": number } }',
+      '',
+      'Task: Generate a software development project plan for building a mobile app.',
+    ].join('\n'),
   });
 
   console.log('Streaming project plan...\n');
   
   let updateCount = 0;
-  for await (const partialObject of projectStream) {
+  for await (const chunk of projectText.textStream) {
     updateCount++;
-    console.log(`Update ${updateCount}: Received partial data...`);
-    
-    // Show what fields have been populated so far
-    const fields = Object.keys(partialObject);
-    console.log(`  Fields populated: ${fields.join(', ')}`);
-    
-    // Show array lengths if arrays are being populated
-    if (partialObject.team) {
-      console.log(`  Team members: ${partialObject.team.length}`);
-    }
-    if (partialObject.milestones) {
-      console.log(`  Milestones: ${partialObject.milestones.length}`);
+    const partial = tryParseJson(chunk);
+    if (partial) {
+      const fields = Object.keys(partial);
+      console.log(`Update ${updateCount}: Fields populated: ${fields.join(', ')}`);
+      if (Array.isArray(partial.team)) console.log(`  Team members: ${partial.team.length}`);
+      if (Array.isArray(partial.milestones)) console.log(`  Milestones: ${partial.milestones.length}`);
     }
   }
 
   console.log('\n=== Final Project Plan ===');
-  const project = await finalProject;
+  const project = projectSchema.parse(JSON.parse(extractJson((await projectText.text) || '')));
   console.log(JSON.stringify(project, null, 2));
   console.log();
 
@@ -107,11 +122,17 @@ async function main() {
     })),
     conclusion: z.string(),
   });
-
-  const { partialObjectStream: analysisStream, object: finalAnalysis } = await streamObject({
+  const analysisStream = await streamText({
     model,
-    schema,
-    prompt: 'Generate a SWOT analysis for a startup entering the AI market.',
+    prompt: [
+      'You MUST output ONLY valid JSON and nothing else.',
+      'Do not use code fences, markdown, or explanations.',
+      'The first character must be { and the last must be }.',
+      'Return JSON matching the required schema exactly.',
+      'Expected JSON shape: { "analysis": { "summary": string, "strengths": string[], "weaknesses": string[], "opportunities": string[], "threats": string[] }, "recommendations": { "title": string, "description": string, "priority": "low"|"medium"|"high", "timeframe": string }[], "conclusion": string }',
+      '',
+      'Task: Generate a SWOT analysis for a startup entering the AI market.',
+    ].join('\n'),
   });
 
   console.log('Streaming SWOT analysis...\n');
@@ -119,8 +140,9 @@ async function main() {
   const expectedFields = Object.keys(schema.shape);
   const completedFields = new Set<string>();
   
-  for await (const partialObject of analysisStream) {
-    const currentFields = Object.keys(partialObject);
+  for await (const chunk of analysisStream.textStream) {
+    const partialObject = tryParseJson(chunk);
+    const currentFields = partialObject ? Object.keys(partialObject) : [];
     
     // Check for newly completed fields
     for (const field of currentFields) {
@@ -133,7 +155,7 @@ async function main() {
   }
 
   console.log('\n=== Final SWOT Analysis ===');
-  const analysis = await finalAnalysis;
+  const analysis = schema.parse(JSON.parse(extractJson((await analysisStream.text) || '')));
   console.log(JSON.stringify(analysis, null, 2));
   console.log();
 
@@ -141,3 +163,19 @@ async function main() {
 }
 
 main().catch(console.error);
+
+// Helpers
+function extractJson(text: string): string {
+  const match = text.match(/[\{\[][\s\S]*[\}\]]/);
+  if (!match) throw new Error('No JSON found in model output');
+  return match[0];
+}
+
+function tryParseJson(text: string): any | null {
+  try {
+    const jsonText = extractJson(text);
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+}

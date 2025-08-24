@@ -1,5 +1,6 @@
-import { generateText } from 'ai';
+import { generateText, tool } from 'ai';
 import { createChatGPTOAuth } from '../src';
+import { z } from 'zod';
 
 /**
  * Tool Limitations Example
@@ -19,43 +20,30 @@ async function main() {
     prompt: 'Please get the weather and also list files',
     tools: {
       // ✅ SUPPORTED: bash tool (maps to "shell" internally)
-      bash: {
+      bash: tool({
         description: 'Execute bash commands',
-        parameters: {
-          type: 'object',
-          properties: {
-            command: { type: 'array', items: { type: 'string' } },
-          },
-          required: ['command'],
+        parameters: z.object({ command: z.array(z.string()) }),
+        execute: async ({ command }) => {
+          const cmd = Array.isArray(command) ? command.join(' ') : String(command);
+          console.log('\n📟 Tool Called: bash');
+          console.log(`   Command: ${cmd}`);
+          return 'Files: example1.ts, example2.ts';
         },
-        execute: async () => 'Files: example1.ts, example2.ts',
-      },
-      
+      }),
+
       // ❌ NOT SUPPORTED: Custom weather tool
-      getWeather: {
+      getWeather: tool({
         description: 'Get weather for a location',
-        parameters: {
-          type: 'object',
-          properties: {
-            location: { type: 'string' },
-          },
-          required: ['location'],
-        },
+        parameters: z.object({ location: z.string() }),
         execute: async () => '72°F and sunny',
-      },
-      
-      // ❌ NOT SUPPORTED: Custom database tool  
-      queryDatabase: {
+      }),
+
+      // ❌ NOT SUPPORTED: Custom database tool
+      queryDatabase: tool({
         description: 'Query a database',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: { type: 'string' },
-          },
-          required: ['query'],
-        },
+        parameters: z.object({ query: z.string() }),
         execute: async () => 'Database results',
-      },
+      }),
     },
   });
 

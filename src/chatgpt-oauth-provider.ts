@@ -1,4 +1,5 @@
-import type { LanguageModelV2, ProviderV2 } from '@ai-sdk/provider';
+import type { LanguageModelV1, ProviderV1 } from '@ai-sdk/provider';
+import { NoSuchModelError } from '@ai-sdk/provider';
 import type { FetchFunction } from '@ai-sdk/provider-utils';
 import { ChatGPTOAuthLanguageModel } from './chatgpt-oauth-language-model';
 import type {
@@ -9,10 +10,10 @@ import type {
 } from './chatgpt-oauth-settings';
 import { AuthProvider, DefaultAuthProvider } from './auth';
 
-export interface ChatGPTOAuthProvider extends ProviderV2 {
-  (modelId: ChatGPTOAuthModelId, options?: ChatGPTOAuthModelOptions): LanguageModelV2;
-  languageModel(modelId: ChatGPTOAuthModelId, options?: ChatGPTOAuthModelOptions): LanguageModelV2;
-  chat(modelId: ChatGPTOAuthModelId, options?: ChatGPTOAuthModelOptions): LanguageModelV2;
+export interface ChatGPTOAuthProvider extends ProviderV1 {
+  (modelId: ChatGPTOAuthModelId, options?: ChatGPTOAuthModelOptions): LanguageModelV1;
+  languageModel(modelId: ChatGPTOAuthModelId, options?: ChatGPTOAuthModelOptions): LanguageModelV1;
+  chat(modelId: ChatGPTOAuthModelId, options?: ChatGPTOAuthModelOptions): LanguageModelV1;
 }
 
 export interface ChatGPTOAuthModelOptions {
@@ -51,7 +52,7 @@ export function createChatGPTOAuth(
   const createModel = (
     modelId: ChatGPTOAuthModelId,
     modelOptions?: ChatGPTOAuthModelOptions
-  ): LanguageModelV2 => {
+  ): LanguageModelV1 => {
     return new ChatGPTOAuthLanguageModel(modelId, {
       provider: 'chatgpt-oauth',
       baseURL,
@@ -72,9 +73,14 @@ export function createChatGPTOAuth(
       chat: (modelId: ChatGPTOAuthModelId, modelOptions?: ChatGPTOAuthModelOptions) =>
         createModel(modelId, modelOptions),
     }
-  );
+  ) as ChatGPTOAuthProvider;
 
-  return provider as ChatGPTOAuthProvider;
+  // add textEmbeddingModel to satisfy ProviderV1 shape; not supported
+  provider.textEmbeddingModel = (modelId: string) => {
+    throw new NoSuchModelError({ modelId, modelType: 'textEmbeddingModel' });
+  };
+
+  return provider;
 }
 
 export const chatgptOAuth = createChatGPTOAuth;

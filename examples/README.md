@@ -1,6 +1,6 @@
 # ChatGPT OAuth Provider Examples
 
-This directory contains examples demonstrating the ChatGPT OAuth provider for the Vercel AI SDK v5.
+This directory contains examples demonstrating the ChatGPT OAuth provider for the Vercel AI SDK v4.
 
 ## Working Examples
 
@@ -22,19 +22,18 @@ This directory contains examples demonstrating the ChatGPT OAuth provider for th
 
 ### ✅ Working Approach: Prompt Engineering
 
-Since the ChatGPT OAuth backend doesn't support `generateObject()` or custom tools, we use prompt engineering to achieve JSON output:
+Since the ChatGPT OAuth backend doesn't support `generateObject()` or custom tools, all JSON examples use prompt engineering with `generateText()` / `streamText()` plus client-side parsing/validation (Zod):
 
 - `generate-json-basic.ts` - Simple objects, arrays, and data types with validation
-- `generate-json-nested.ts` - Complex nested structures and real-world schemas  
+- `generate-json-nested.ts` - Complex nested structures and real-world schemas
 - `generate-json-advanced.ts` - Production patterns with retry logic and error handling
+- `generate-object.ts` - Object generation via strict JSON-only prompts + Zod
+- `stream-object.ts` - Streaming JSON text with progressive parsing
+- `structured-output.ts` - Multiple structured patterns and validation
 
-### ❌ What Doesn't Work
-The `generate-object.ts`, `stream-object.ts`, and `structured-output.ts` examples **do not work** because:
-
-1. **No Custom Tools**: Backend only supports `shell` and `update_plan` tools
-2. **Fixed Instructions**: Codex CLI instructions cannot be modified (causes errors)
-3. **No JSON Mode**: The backend ignores `responseFormat` parameters
-4. **AI SDK Incompatibility**: `generateObject()` requires custom tools which aren't supported
+### ❌ What Still Doesn’t Work
+- Server-enforced JSON schemas (no “JSON mode” on this backend)
+- AI SDK `generateObject()` / `streamObject()` APIs (require custom tools)
 
 ### Backend Architecture
 
@@ -86,12 +85,11 @@ npx tsx examples/tool-calling-stateless.ts   # Stateless backend demo
 npx tsx examples/tool-calling-limitations.ts # Tool support info
 ```
 
-**Examples That Show Limitations:**
+**More Structured JSON Examples:**
 ```bash
-# These demonstrate what doesn't work
-npx tsx examples/generate-object.ts    # No JSON mode
-npx tsx examples/stream-object.ts      # No streaming objects
-npx tsx examples/structured-output.ts  # No structured output
+npx tsx examples/generate-object.ts    # JSON via prompt engineering + Zod
+npx tsx examples/stream-object.ts      # Stream text; parse progressively
+npx tsx examples/structured-output.ts  # Multiple structured patterns
 ```
 
 Or use npm scripts:
@@ -102,8 +100,8 @@ npm run example:basic         # Basic text generation
 npm run example:streaming     # Streaming
 npm run example:reasoning     # Reasoning effort levels
 npm run example:tools         # Tool calling basic example
-npm run example:object        # Object generation (fails)
-npm run example:structured    # Structured output (fails)
+npm run example:object        # Object generation via prompt engineering
+npm run example:structured    # Structured output via prompt engineering
 ```
 
 ## Important Concepts
