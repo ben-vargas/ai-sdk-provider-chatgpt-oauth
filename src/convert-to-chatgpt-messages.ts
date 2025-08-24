@@ -1,4 +1,14 @@
-import type { LanguageModelV1Prompt, LanguageModelV1CallWarning } from '@ai-sdk/provider';
+import type {
+  LanguageModelV1Prompt,
+  LanguageModelV1CallWarning,
+  LanguageModelV1TextPart,
+  LanguageModelV1ImagePart,
+  LanguageModelV1FilePart,
+  LanguageModelV1ToolCallPart,
+  LanguageModelV1ReasoningPart,
+  LanguageModelV1RedactedReasoningPart,
+  LanguageModelV1ToolResultPart,
+} from '@ai-sdk/provider';
 import { ChatGPTMessage } from './chatgpt-oauth-settings';
 
 export function convertToChatGPTMessages({
@@ -32,18 +42,16 @@ export function convertToChatGPTMessages({
           messages.push({ role: 'user', content: message.content });
         } else {
           const parts: string[] = [];
-          for (const part of message.content) {
+          const userParts = message.content as Array<
+            LanguageModelV1TextPart | LanguageModelV1ImagePart | LanguageModelV1FilePart
+          >;
+          for (const part of userParts) {
             if (part.type === 'text') {
               parts.push(part.text);
             } else if (part.type === 'image') {
-              if (typeof part.image === 'string') {
-                parts.push(`[Image: ${part.image}]`);
-              } else if (part.image && 'url' in part.image && typeof (part.image as any).url === 'string') {
-                parts.push(`[Image: ${(part.image as any).url}]`);
-              } else {
-                warnings.push({ type: 'other', message: 'Unsupported image content; converted to placeholder.' });
-                parts.push('[Image]');
-              }
+              const img = (part as LanguageModelV1ImagePart).image;
+              if (img instanceof URL) parts.push(`[Image: ${img.toString()}]`);
+              else parts.push('[Image]');
             } else {
               const unknownPart = part as { type: string };
               warnings.push({ type: 'other', message: `Unsupported content part type: ${unknownPart.type}` });
@@ -70,14 +78,25 @@ export function convertToChatGPTMessages({
         };
 
         if (Array.isArray(message.content)) {
-          const toolCalls = message.content
-            .filter((part) => (part as any).type === 'tool-call')
-            .map((part: any) => ({
+          const assistantParts = message.content as Array<
+            | LanguageModelV1TextPart
+            | LanguageModelV1FilePart
+            | LanguageModelV1ReasoningPart
+            | LanguageModelV1RedactedReasoningPart
+            | LanguageModelV1ToolCallPart
+          >;
+
+          const toolCalls = assistantParts
+            .filter((p): p is LanguageModelV1ToolCallPart => p.type === 'tool-call')
+            .map((part) => ({
               id: part.toolCallId,
               type: 'function' as const,
               function: {
                 name: part.toolName,
-                arguments: typeof part.args === 'string' ? part.args : JSON.stringify(part.input ?? part.args ?? {}),
+                arguments:
+                  typeof (part.args as unknown) === 'string'
+                    ? (part.args as string)
+                    : JSON.stringify(part.args ?? {}),
               },
             }));
           if (toolCalls.length > 0) chatGPTMessage.tool_calls = toolCalls;
@@ -88,16 +107,14 @@ export function convertToChatGPTMessages({
       }
 
       case 'tool': {
-        for (const toolResponse of message.content as any[]) {
+        const contentArray = message.content as Array<LanguageModelV1ToolResultPart>;
+        for (const toolResponse of contentArray) {
           let content: string;
-          const output = toolResponse.result ?? toolResponse.output;
-          if (output?.type === 'text' || output?.type === 'error-text') {
-            content = output.value;
-          } else if (typeof output === 'string') {
-            content = output;
-          } else {
-            content = JSON.stringify(output?.value ?? output ?? {});
-          }
+          // Prefer text content from advanced tool result parts when available
+          const textPart = toolResponse.content?.find((p) => p.type === 'text');
+          if (textPart && textPart.type === 'text') content = textPart.text;
+          else if (typeof toolResponse.result === 'string') content = toolResponse.result;
+          else content = JSON.stringify(toolResponse.result ?? {});
           messages.push({ role: 'tool', content, tool_call_id: toolResponse.toolCallId });
         }
         break;
@@ -116,10 +133,4 @@ export function convertToChatGPTMessages({
   return { messages, warnings };
 }
 
-function convertUint8ArrayToBase64(array: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < array.byteLength; i++) {
-    binary += String.fromCharCode(array[i]);
-  }
-  return btoa(binary);
-}
+// Removed unused helper to satisfy strict typecheck settings

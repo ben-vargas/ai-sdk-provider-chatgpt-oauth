@@ -154,29 +154,27 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
     const systemInstructions = (() => {
       const sysParts = [] as string[];
       sysParts.push(codexInstructions);
-      try {
-        for (const m of options.prompt) {
-          if (m.role === 'system' && typeof m.content === 'string' && m.content.trim() !== '') {
-            sysParts.push(m.content);
-          }
+      for (const m of options.prompt) {
+        if (m.role === 'system' && typeof m.content === 'string' && m.content.trim() !== '') {
+          sysParts.push(m.content);
         }
-        // In object-json mode, add explicit hardening to maximize JSON-only responses.
-        if ((options.mode?.type ?? 'regular') === 'object-json') {
-          sysParts.push(
-            [
-              'CRITICAL: Output MUST be valid JSON only.',
-              '- Do not include markdown, code fences, or commentary.',
-              '- Do not include fields not requested by the schema.',
-              '- The first character must be { or [ and the last must be } or ].',
-            ].join('\n')
-          );
-        }
-      } catch {}
+      }
+      // In object-json mode, add explicit hardening to maximize JSON-only responses.
+      if ((options.mode?.type ?? 'regular') === 'object-json') {
+        sysParts.push(
+          [
+            'CRITICAL: Output MUST be valid JSON only.',
+            '- Do not include markdown, code fences, or commentary.',
+            '- Do not include fields not requested by the schema.',
+            '- The first character must be { or [ and the last must be } or ].',
+          ].join('\n')
+        );
+      }
       return sysParts.filter(Boolean).join('\n\n');
     })();
 
     // Determine tool choice behavior: require a tool call on first turn, allow auto after tool results
-    const hasToolMessages = options.prompt?.some?.((m: any) => m.role === 'tool');
+    const hasToolMessages = chatgptMessages.some((m) => m.role === 'tool');
 
     const args: ChatGPTRequest = {
       model: this.modelId,
@@ -198,7 +196,12 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
     if (options.topP !== undefined) {
       warnings.push({ type: 'other', message: 'Top-p parameter is not supported by ChatGPT backend' });
     }
-    if ((options as any).maxOutputTokens !== undefined || options.maxTokens !== undefined) {
+    const hasMaxOutputTokens =
+      typeof (options as Record<string, unknown>) === 'object' &&
+      options !== null &&
+      'maxOutputTokens' in (options as Record<string, unknown>) &&
+      (options as Record<string, unknown>)['maxOutputTokens'] !== undefined;
+    if (hasMaxOutputTokens || options.maxTokens !== undefined) {
       warnings.push({ type: 'other', message: 'Max tokens parameter is not supported by ChatGPT backend' });
     }
 
@@ -470,7 +473,7 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
                             toolName: originalName,
                             args: JSON.stringify(validated),
                           });
-                        } catch (error) {
+                        } catch {
                           controller.enqueue({
                             type: 'tool-call',
                             toolCallType: 'function',
@@ -492,7 +495,7 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
                       }
                     }
                     break;
-                  case 'response.completed':
+                  case 'response.completed': {
                     if (mode.type === 'object-json' && accumulatedText) {
                       // try to extract json
                       let toEmit = accumulatedText;
@@ -513,6 +516,7 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
                       },
                     });
                     break;
+                  }
                 }
               } catch {
                 // ignore parse error

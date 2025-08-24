@@ -3,7 +3,7 @@ import type {
   LanguageModelV1ProviderDefinedTool,
   LanguageModelV1CallWarning,
 } from '@ai-sdk/provider';
-import type { ChatGPTTool, ChatGPTToolChoice } from './chatgpt-oauth-settings';
+import type { ChatGPTTool } from './chatgpt-oauth-settings';
 
 // Define the Codex tools that ChatGPT backend supports (Responses API format)
 const CODEX_SHELL_TOOL: ChatGPTTool = {
