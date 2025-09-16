@@ -47,14 +47,20 @@ async function main() {
   // Test working models
   console.log('\n🟢 WORKING MODELS:');
   await testModel(
-    provider, 
+    provider,
     'gpt-5',
     'Latest GPT-5 with reasoning (200k context)'
   );
-  
+
   await testModel(
     provider,
-    'codex-mini-latest', 
+    'gpt-5-codex',
+    'Codex CLI tuned GPT-5 variant with identical limits'
+  );
+
+  await testModel(
+    provider,
+    'codex-mini-latest',
     'Experimental model with local shell understanding'
   );
 
@@ -63,7 +69,7 @@ async function main() {
   await testModel(
     provider,
     'o3',
-    'Advanced reasoning model (works in Codex CLI, not OAuth)'
+    'Advanced reasoning model (requires API key access, not OAuth)'
   );
 
   // Additional examples of unsupported models
@@ -77,8 +83,8 @@ async function main() {
   
   console.log('\n' + '=' .repeat(60));
   console.log('Summary:');
-  console.log('  • Only gpt-5 and codex-mini-latest work via OAuth API');
-  console.log('  • Other models may work in Codex CLI but not through OAuth');
+  console.log('  • Only gpt-5, gpt-5-codex, and codex-mini-latest work via OAuth API');
+  console.log('  • Other models currently require API key integrations rather than OAuth');
   console.log('  • The provider will pass through any model ID for future support');
   console.log('=' .repeat(60));
 }

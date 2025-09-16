@@ -209,11 +209,12 @@ const result = await generateText({
 ### Actually Working Models (Tested)
 
 - `gpt-5` - Latest GPT-5 model with reasoning support (200k context, 100k output)
+- `gpt-5-codex` - Codex CLI tuned GPT-5 variant with identical limits and reasoning defaults
 - `codex-mini-latest` - Experimental model with local shell understanding (200k context, 100k output)
 
 ### Model Limitations
 
-The ChatGPT OAuth API at `https://chatgpt.com/backend-api/codex/responses` only supports these two models. While Codex CLI internally supports additional models (o3, o4-mini, gpt-4.1, gpt-4o, etc.), they return "Unsupported model" errors when accessed through the OAuth API.
+The ChatGPT OAuth API at `https://chatgpt.com/backend-api/codex/responses` currently supports only these three models. While Codex CLI internally supports additional models (o3, o4-mini, gpt-4.1, gpt-4o, etc.), they return "Unsupported model" errors when accessed through the OAuth API.
 
 Any other model ID string will be passed through to the API, allowing for future model support without code changes.
 

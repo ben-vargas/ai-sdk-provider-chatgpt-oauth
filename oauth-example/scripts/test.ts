@@ -61,8 +61,25 @@ async function testOAuthIntegration() {
     process.exit(1);
   }
   
-  // Step 5: Test token refresh simulation
-  console.log('\n5️⃣  Testing token management...');
+  // Step 5: Test API call to gpt-5-codex
+  console.log('\n5️⃣  Testing API call to gpt-5-codex...');
+  try {
+    const result = await generateText({
+      model: provider('gpt-5-codex'),
+      prompt: 'Respond with "Codex variant reachable."',
+    });
+
+    console.log('   ✅ API call successful');
+    console.log(`   Response: ${result.text}`);
+    console.log(`   Tokens used: ${result.usage?.totalTokens}`);
+  } catch (error) {
+    console.log('   ❌ API call failed');
+    console.log(`   Error: ${error}`);
+    process.exit(1);
+  }
+
+  // Step 6: Test token refresh simulation
+  console.log('\n6️⃣  Testing token management...');
   const finalCreds = await tokenManager.getCredentials();
   if (finalCreds && finalCreds.accessToken !== credentials.accessToken) {
     console.log('   ✅ Token was refreshed during test');

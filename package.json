@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-provider-chatgpt-oauth",
-  "version": "1.0.0-ai-sdk-v4",
+  "version": "1.1.0-ai-sdk-v4",
   "description": "Vercel AI SDK v4 provider for ChatGPT OAuth (gpt-5) - use ChatGPT Plus/Pro/Teams subscription",
   "keywords": [
     "ai-sdk",
@@ -44,7 +44,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup && cp src/codex-instructions.txt dist/",
+    "build": "tsup && cp src/codex-instructions.txt src/codex-gpt5-codex-instructions.txt src/codex-apply-patch-instructions.txt dist/",
     "clean": "rm -rf dist",
     "dev": "tsup --watch",
     "lint": "eslint src --max-warnings 0",
@@ -62,7 +62,11 @@
     "example:models": "npm run build && npx tsx examples/model-support.ts",
     "example:reasoning": "npm run build && npx tsx examples/reasoning-effort.ts",
     "example:object": "npm run build && npx tsx examples/generate-object.ts",
-    "example:structured": "npm run build && npx tsx examples/structured-output.ts"
+    "example:structured": "npm run build && npx tsx examples/structured-output.ts",
+    "example:basic-codex": "npm run build && npx tsx examples/basic-usage-gpt-5-codex.ts",
+    "example:streaming-codex": "npm run build && npx tsx examples/streaming-gpt-5-codex.ts",
+    "example:system-codex": "npm run build && npx tsx examples/system-message-gpt-5-codex.ts",
+    "example:object-codex": "npm run build && npx tsx examples/generate-json-basic-gpt-5-codex.ts"
   },
   "dependencies": {
     "@ai-sdk/provider": "1.1.3",
