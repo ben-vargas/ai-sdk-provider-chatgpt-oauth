@@ -107,7 +107,7 @@ async function main() {
       if (error.message.includes('401') || error.message.includes('Unauthorized')) {
         console.log('\n💡 Tip: Your token may have expired. Try running "npm run login" again.\n');
       } else if (error.message.includes('Model not supported')) {
-        console.log('\n💡 Tip: The model may not be available. Try using "gpt-5" or "codex-mini-latest".\n');
+        console.log('\n💡 Tip: The model may not be available. Try using "gpt-5", "gpt-5-codex", or "codex-mini-latest".\n');
       }
     }
     

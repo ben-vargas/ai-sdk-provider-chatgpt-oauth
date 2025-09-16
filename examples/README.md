@@ -6,12 +6,18 @@ This directory contains examples demonstrating the ChatGPT OAuth provider for th
 
 ### ✅ Authentication & Setup
 - `check-auth.ts` - Verify OAuth credentials and authentication status
-- `model-support.ts` - Demonstrates working models (gpt-5, codex-mini-latest) and errors for unsupported models
+- `model-support.ts` - Demonstrates working models (gpt-5, gpt-5-codex, codex-mini-latest) and errors for unsupported models
 
 ### ✅ Text Generation
 - `basic-usage.ts` - Simple text generation with proper telemetry
 - `streaming.ts` - Real-time streaming responses with SSE
 - `reasoning-effort.ts` - Control reasoning depth with effort levels (low/medium/high)
+
+### ✅ GPT-5 Codex Focus
+- `basic-usage-gpt-5-codex.ts` - Minimal call against the Codex-tuned model
+- `streaming-gpt-5-codex.ts` - Stream Codex responses for long-form output
+- `system-message-gpt-5-codex.ts` - Demonstrates system prompts and warnings
+- `generate-json-basic-gpt-5-codex.ts` - Prompt-engineered JSON shaping with Zod validation
 
 ### ✅ Tool Calling (Codex-Style)
 - `tool-calling-basic.ts` - Simple tool calling example with clear output
@@ -41,7 +47,7 @@ The `generate-object.ts`, `stream-object.ts`, and `structured-output.ts` example
 The ChatGPT OAuth backend (`https://chatgpt.com/backend-api/codex/responses`) follows the Codex CLI pattern:
 
 #### Key Characteristics
-- **Models**: Supports `gpt-5` and `gpt-5-turbo-preview`
+- **Models**: Supports `gpt-5`, `gpt-5-codex`, and `gpt-5-turbo-preview`
 - **Tools**: Only `shell` and `update_plan` (predefined Codex tools)
 - **Instructions**: Uses Codex CLI instructions for optimal performance
 - **Streaming**: Always uses Server-Sent Events (SSE)
@@ -76,9 +82,13 @@ npx tsx examples/check-auth.ts       # Check authentication
 npx tsx examples/model-support.ts    # Test model support
 
 # Text Generation
-npx tsx examples/basic-usage.ts      # Basic text generation
-npx tsx examples/streaming.ts        # Streaming responses
-npx tsx examples/reasoning-effort.ts # Reasoning with different effort levels
+npx tsx examples/basic-usage.ts              # Basic text generation
+npx tsx examples/streaming.ts                # Streaming responses
+npx tsx examples/reasoning-effort.ts         # Reasoning with different effort levels
+npx tsx examples/basic-usage-gpt-5-codex.ts       # Codex-tuned basic call
+npx tsx examples/streaming-gpt-5-codex.ts         # Codex streaming demo
+npx tsx examples/system-message-gpt-5-codex.ts    # System message handling
+npx tsx examples/generate-json-basic-gpt-5-codex.ts # Prompt-engineered JSON output
 
 # Tool Calling
 npx tsx examples/tool-calling-basic.ts       # Simple tool calling
@@ -101,6 +111,10 @@ npm run example:models        # Test model support
 npm run example:basic         # Basic text generation
 npm run example:streaming     # Streaming
 npm run example:reasoning     # Reasoning effort levels
+npm run example:basic-codex     # Codex basic usage
+npm run example:streaming-codex # Codex streaming demo
+npm run example:system-codex    # Codex system message handling
+npm run example:object-codex    # Codex JSON generation with Zod
 npm run example:tools         # Tool calling basic example
 npm run example:object        # Object generation (fails)
 npm run example:structured    # Structured output (fails)
@@ -137,7 +151,7 @@ The model describes what it will do but doesn't automatically interpret tool res
 ## Best Use Cases
 
 ✅ **Ideal For:**
-- Coding assistants with gpt-5 access
+- Coding assistants with gpt-5 or gpt-5-codex access
 - CLI automation and scripting
 - Task planning and execution
 - Integration with existing CLI tools

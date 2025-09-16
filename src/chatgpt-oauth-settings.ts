@@ -1,8 +1,13 @@
-export type ChatGPTOAuthModelId = 'gpt-5' | 'codex-mini-latest' | (string & {});
+export type ChatGPTOAuthModelId = 'gpt-5' | 'gpt-5-codex' | 'codex-mini-latest' | (string & {});
 
 export const chatGPTOAuthModels = {
   // Only models that actually work with ChatGPT OAuth API
   'gpt-5': {
+    contextWindow: 200000,
+    maxTokens: 100000,
+    supportsReasoning: true,
+  },
+  'gpt-5-codex': {
     contextWindow: 200000,
     maxTokens: 100000,
     supportsReasoning: true,

@@ -116,10 +116,11 @@ These standard parameters are **not supported**:
 
 ### Actually Working Models (Tested via API)
 
-Only **2 models** work through the ChatGPT OAuth API:
+Only **3 models** work through the ChatGPT OAuth API:
 
 1. **`gpt-5`** - Latest GPT-5 with reasoning support (200k context, 100k output)
-2. **`codex-mini-latest`** - Experimental with local shell understanding (200k context, 100k output)
+2. **`gpt-5-codex`** - Codex-tuned GPT-5 variant with identical limits and defaults
+3. **`codex-mini-latest`** - Experimental with local shell understanding (200k context, 100k output)
 
 ### Models That DO NOT Work
 
@@ -133,7 +134,7 @@ Testing confirmed these models return "Unsupported model" errors:
 
 ### Important Distinction
 
-**Codex CLI** internally supports many models, but the **ChatGPT OAuth API** (`/backend-api/codex/responses`) only accepts `gpt-5` and `codex-mini-latest`. This is a limitation of the OAuth API endpoint, not the provider.
+**Codex CLI** internally supports many models, but the **ChatGPT OAuth API** (`/backend-api/codex/responses`) currently only accepts `gpt-5`, `gpt-5-codex`, and `codex-mini-latest`. This is a limitation of the OAuth API endpoint, not the provider.
 
 ## Use Case Limitations
 
@@ -165,7 +166,7 @@ Testing confirmed these models return "Unsupported model" errors:
 | JSON Mode | ✅ Supported | ❌ Not available |
 | Temperature | ✅ Configurable | ❌ Fixed |
 | API Keys | ✅ Simple | ❌ OAuth required |
-| Models | ✅ Many options | ❌ Only gpt-5 |
+| Models | ✅ Many options | ❌ Only gpt-5 / gpt-5-codex / codex-mini-latest |
 | Structured Output | ✅ Full support | ❌ Not supported |
 | Response Format | ✅ Controllable | ❌ Fixed |
 

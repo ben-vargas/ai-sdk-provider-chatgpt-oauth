@@ -305,7 +305,7 @@ The OAuth flow was interrupted or tampered with. Try logging in again.
 Your refresh token may have expired (after 28 days). Run `npm run login` again.
 
 ### "Model not supported"
-Only `gpt-5` and `codex-mini-latest` work with OAuth. Other models require API keys.
+Only `gpt-5`, `gpt-5-codex`, and `codex-mini-latest` work with OAuth. Other models require API keys.
 
 ## 📚 Additional Resources
 
