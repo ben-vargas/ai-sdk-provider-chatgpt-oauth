@@ -24,15 +24,19 @@ import { mapChatGPTFinishReason } from './map-chatgpt-finish-reason';
 import type { AuthProvider } from './auth';
 
 // Load instructions file
-let codexInstructions: string;
-try {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  codexInstructions = readFileSync(join(__dirname, 'codex-instructions.txt'), 'utf8');
-} catch {
-  // Fallback if file not found
-  codexInstructions = 'You are a helpful assistant.';
+function loadInstructions(filename: string, fallback: string): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    return readFileSync(join(__dirname, filename), 'utf8');
+  } catch {
+    return fallback;
+  }
 }
+
+const baseInstructions = loadInstructions('codex-instructions.txt', 'You are a helpful assistant.');
+const codexModelInstructions = loadInstructions('codex-gpt5-codex-instructions.txt', baseInstructions);
+const applyPatchInstructions = loadInstructions('codex-apply-patch-instructions.txt', '');
 
 type ChatGPTOAuthConfig = {
   provider: string;
@@ -122,14 +126,36 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
     };
   }
 
+  private getInstructions(): string {
+    const modelName = this.modelId.toLowerCase();
+    if (modelName.startsWith('codex-') || modelName.startsWith('gpt-5-codex')) {
+      return codexModelInstructions;
+    }
+
+    if (modelName.startsWith('gpt-5') && applyPatchInstructions) {
+      return [baseInstructions, applyPatchInstructions].join('\n');
+    }
+
+    return baseInstructions;
+  }
+
   private async getArgs(options: LanguageModelV1CallOptions) {
     const warnings: LanguageModelV1CallWarning[] = [];
 
-    const { messages: chatgptMessages, warnings: messageWarnings } = convertToChatGPTMessages({
+    const { messages: convertedMessages, warnings: messageWarnings } = convertToChatGPTMessages({
       prompt: options.prompt,
-      systemMessageMode: 'system',
+      systemMessageMode: 'user',
     });
-    warnings.push(...messageWarnings);
+
+    const sanitizedWarnings = messageWarnings.filter((warning) => {
+      if ('message' in warning && warning.message) {
+        return warning.message !== 'System messages are converted to user messages';
+      }
+      return true;
+    });
+    warnings.push(...sanitizedWarnings);
+
+    const chatgptMessages = [...convertedMessages];
 
     // Tools only come from regular mode in v1
     const mode = options.mode ?? { type: 'regular' as const };
@@ -150,35 +176,24 @@ export class ChatGPTOAuthLanguageModel implements LanguageModelV1 {
       }
     }
 
-    // Compose system instructions: base instructions + any system messages from the prompt
-    const systemInstructions = (() => {
-      const sysParts = [] as string[];
-      sysParts.push(codexInstructions);
-      for (const m of options.prompt) {
-        if (m.role === 'system' && typeof m.content === 'string' && m.content.trim() !== '') {
-          sysParts.push(m.content);
-        }
-      }
-      // In object-json mode, add explicit hardening to maximize JSON-only responses.
-      if ((options.mode?.type ?? 'regular') === 'object-json') {
-        sysParts.push(
-          [
-            'CRITICAL: Output MUST be valid JSON only.',
-            '- Do not include markdown, code fences, or commentary.',
-            '- Do not include fields not requested by the schema.',
-            '- The first character must be { or [ and the last must be } or ].',
-          ].join('\n')
-        );
-      }
-      return sysParts.filter(Boolean).join('\n\n');
-    })();
-
     // Determine tool choice behavior: require a tool call on first turn, allow auto after tool results
     const hasToolMessages = chatgptMessages.some((m) => m.role === 'tool');
 
+    if ((options.mode?.type ?? 'regular') === 'object-json') {
+      chatgptMessages.unshift({
+        role: 'user',
+        content: [
+          'CRITICAL: Output MUST be valid JSON only.',
+          '- Do not include markdown, code fences, or commentary.',
+          '- Do not include fields not requested by the schema.',
+          '- The first character must be { or [ and the last must be } or ].',
+        ].join('\n'),
+      });
+    }
+
     const args: ChatGPTRequest = {
       model: this.modelId,
-      instructions: systemInstructions,
+      instructions: this.getInstructions(),
       input: chatgptMessages,
       tools,
       tool_choice: tools && tools.length > 0 ? (hasToolMessages ? 'auto' : 'required') : 'none',

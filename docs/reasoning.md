@@ -10,7 +10,7 @@ import { createChatGPTOAuth } from 'ai-sdk-provider-chatgpt-oauth';
 
 // Default behavior (matches Codex CLI defaults)
 const provider = createChatGPTOAuth();
-// For gpt-5/codex models: automatically uses effort='medium', summary='auto'
+// For gpt-5, gpt-5-codex, and codex models: automatically uses effort='medium', summary='auto'
 
 // Customize global reasoning settings
 const customProvider = createChatGPTOAuth({
@@ -27,7 +27,7 @@ const result = await generateText({
   prompt: 'Prove that the square root of 2 is irrational',
 });
 
-// Explicitly disable reasoning (even for gpt-5)
+// Explicitly disable reasoning (even for gpt-5 variants)
 const noReasoning = provider('gpt-5', { reasoningEffort: null });
 ```
 
@@ -36,11 +36,12 @@ const noReasoning = provider('gpt-5', { reasoningEffort: null });
 | Model                 | Reasoning Effort                     | Reasoning Summary                                       | Notes                                                      |
 | --------------------- | ------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------- |
 | **gpt-5**             | ✅ `low`<br>✅ `medium`<br>✅ `high` | ✅ `auto`<br>✅ `detailed`<br>⚠️ `none`<br>⚠️ `concise` | \*API behavior inconsistent - defaults to omitting summary |
+| **gpt-5-codex**       | ✅ `low`<br>✅ `medium`<br>✅ `high` | ✅ `auto`<br>✅ `detailed`<br>⚠️ `none`<br>⚠️ `concise` | \*API behavior inconsistent - defaults to omitting summary |
 | **codex-mini-latest** | ✅ `low`<br>✅ `medium`<br>✅ `high` | ✅ `auto`<br>✅ `detailed`<br>⚠️ `none`<br>⚠️ `concise` | \*API behavior inconsistent - defaults to omitting summary |
 
 ## Defaults (matching Codex CLI)
 
-- When using `gpt-5` or `codex-mini-latest` models, reasoning defaults to `effort: 'medium'` and `summary: 'auto'`
+- When using `gpt-5`, `gpt-5-codex`, or `codex-mini-latest` models, reasoning defaults to `effort: 'medium'` and `summary: 'auto'`
 - To disable reasoning, explicitly set `reasoningEffort: null`
 - Other models do not receive reasoning parameters
 
